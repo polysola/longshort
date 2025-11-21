@@ -1,7 +1,7 @@
 {
   "version": 2,
   "functions": {
-    "api/index.ts": {
+    "api/cron.ts": {
       "maxDuration": 60
     }
   },
@@ -9,10 +9,6 @@
     {
       "src": "/cron",
       "dest": "/api/cron"
-    },
-    {
-      "src": "/",
-      "dest": "/api"
     }
   ]
 }
