@@ -20,6 +20,25 @@ let lastProcessedMsgId: string | null = null;
 let latestMailData: NormalizedMail | null = null; // Lưu mail mới nhất để bot trả lời câu hỏi
 let lastTelegramUpdateId: number = 0; // Offset cho Telegram updates
 
+// Load mail data từ file logs khi khởi động
+const loadMailDataFromFile = async (): Promise<void> => {
+  try {
+    const fileContent = await fs.readFile(OUTPUT_PATH, "utf8");
+    const data = JSON.parse(fileContent);
+    
+    if (data.emails && data.emails.length > 0) {
+      latestMailData = data.emails[0]; // Lấy mail đầu tiên (mới nhất)
+      logInfo("Đã load mail data từ file logs.", { mailId: latestMailData?.id });
+    } else {
+      logInfo("File logs không có data mail nào.");
+    }
+  } catch (error) {
+    logWarn("Không thể load mail data từ file logs (có thể file chưa tồn tại).", { 
+      error: (error as Error).message 
+    });
+  }
+};
+
 const processMessage = async (
   env: EnvConfig,
   gmailClient: gmail_v1.Gmail,
@@ -213,6 +232,9 @@ const handleTelegramMessages = async (env: EnvConfig) => {
 
       logInfo("Nhận câu hỏi từ người dùng:", { question: userMessage });
 
+      // Gửi tin nhắn "đang xử lý" ngay lập tức
+      await sendTelegramMessage(env, "⏳ Đang lấy dữ liệu và phân tích, vui lòng đợi...");
+
       // Trả lời dựa trên mail mới nhất
       const answer = await answerQuestion(env, userMessage, latestMailData);
 
@@ -234,6 +256,10 @@ const main = async () => {
 
     logInfo(`Bắt đầu ứng dụng. Chu kỳ kiểm tra Gmail: ${POLLING_INTERVAL_MS / 60000} phút.`);
     logInfo("Bot Telegram đã sẵn sàng trả lời câu hỏi!");
+    
+    // Load mail data từ file logs (nếu có)
+    await loadMailDataFromFile();
+    
     logInfo("Lưu ý: Lần chạy đầu tiên sẽ luôn xử lý mail mới nhất tìm thấy.");
 
     // Chạy vòng lặp vô tận
