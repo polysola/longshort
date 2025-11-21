@@ -12,7 +12,7 @@ import { logError, logInfo, logWarn } from "./utils/logger";
 import { AppError } from "./lib/errors";
 
 const OUTPUT_PATH = path.join(process.cwd(), "logs", "latest-mails.json");
-const POLLING_INTERVAL_MS = 5 * 60 * 1000; // 10 phút
+const POLLING_INTERVAL_MS = 10 * 60 * 1000; // 15 phút
 
 // Biến lưu trạng thái ID tin nhắn mới nhất đã xử lý
 let lastProcessedMsgId: string | null = null;
@@ -22,26 +22,48 @@ const processMessage = async (
   gmailClient: gmail_v1.Gmail,
   message: gmail_v1.Schema$Message,
 ): Promise<NormalizedMail | null> => {
-  if (!message.id) {
-    logWarn("Bỏ qua thư vì thiếu ID.");
+  if (!message.id || !message.internalDate) {
+    logWarn("Bỏ qua thư vì thiếu ID hoặc date.");
     return null;
   }
 
   try {
-    logInfo("Bắt đầu xử lý thư.", { messageId: message.id });
+    const mailTimestamp = parseInt(message.internalDate);
+    const mailDate = new Date(mailTimestamp);
+    const now = new Date();
+    const diffMinutes = Math.floor((now.getTime() - mailTimestamp) / (1000 * 60));
+
+    logInfo("Bắt đầu xử lý thư.", { 
+      messageId: message.id,
+      receivedAt: mailDate.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+      ageMinutes: diffMinutes
+    });
 
     const normalized = normalizeMessage(message);
 
-    // 1. Phân tích với GPT (ưu tiên HTML)
+    // 1. Phân tích với Gemini
     const analysis = await analyzeMail(env, normalized);
 
-    // 2. Format tin nhắn Telegram (có icon, entry, SL, TP)
-    const telegramMessage = formatTelegramMessage(analysis);
+    // 2. Format tin nhắn Telegram với thời gian chi tiết
+    const mailTimeString = mailDate.toLocaleString('vi-VN', { 
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+    
+    const separator = `\n━━━━━━━━━━━━━━━━━━━━━━\n📧 *Mail nhận lúc:* ${mailTimeString}\n⏰ *Xử lý lúc:* ${now.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}\n━━━━━━━━━━━━━━━━━━━━━━\n`;
+    
+    const baseMessage = formatTelegramMessage(analysis);
+    const finalMessage = separator + baseMessage;
 
     // 3. Gửi Telegram
-    await sendTelegramMessage(env, telegramMessage);
+    await sendTelegramMessage(env, finalMessage);
 
-    // 4. Đánh dấu đã đọc (tuỳ chọn, nhưng logic chính giờ dựa vào lastProcessedMsgId)
+    // 4. Đánh dấu đã đọc
     await markMessageAsRead(gmailClient, message.id);
 
     logInfo("Đã xử lý & gửi Telegram thành công.", {
@@ -85,25 +107,65 @@ const saveMailsToFile = async (mails: NormalizedMail[]) => {
 };
 
 const checkNewEmails = async (env: EnvConfig, gmailClient: gmail_v1.Gmail) => {
-  logInfo("Đang kiểm tra Gmail...", { query: env.gmailPollQuery });
+  logInfo("Đang kiểm tra Gmail...");
 
-  // CHỈ LẤY 1 THƯ MỚI NHẤT
-  const messages = await fetchMessages(gmailClient, env.gmailPollQuery, 1);
+  // Lấy nhiều thư để có thể sort chính xác
+  const query = "from:noti@vaibb.com";
+  const messages = await fetchMessages(gmailClient, query, 10);
 
   if (messages.length === 0) {
     logInfo("Không tìm thấy thư nào từ người gửi này.");
     return;
   }
 
-  const latestMessage = messages[0];
-  if (!latestMessage?.id) {
+  // Sắp xếp theo internalDate GIẢM DẦN (mail mới nhất lên đầu)
+  const sortedMessages = messages.sort((a, b) => {
+    const dateA = parseInt(a.internalDate || "0");
+    const dateB = parseInt(b.internalDate || "0");
+    return dateB - dateA; // Mail mới hơn lên trước
+  });
+
+  const latestMessage = sortedMessages[0];
+  
+  if (!latestMessage?.id || !latestMessage.internalDate) {
+    logWarn("Mail mới nhất thiếu ID hoặc timestamp.");
     return;
   }
+
+  // Log thông tin mail mới nhất
+  const mailTimestamp = parseInt(latestMessage.internalDate);
+  const mailDate = new Date(mailTimestamp);
+  const diffMinutes = Math.floor((Date.now() - mailTimestamp) / (1000 * 60));
+
+  logInfo("Mail mới nhất tìm thấy:", {
+    id: latestMessage.id,
+    receivedAt: mailDate.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+    ageMinutes: diffMinutes
+  });
 
   // Kiểm tra trùng lặp: Nếu ID thư này trùng với thư đã xử lý lần trước -> Bỏ qua
   if (latestMessage.id === lastProcessedMsgId) {
     logInfo("Không có thư mới. (ID thư mới nhất trùng với ID đã xử lý)", { id: latestMessage.id });
     return;
+  }
+
+  // Kiểm tra trạng thái đã đọc
+  const thread = await gmailClient.users.messages.get({
+    userId: 'me',
+    id: latestMessage.id,
+    format: 'minimal' 
+  });
+
+  const isUnread = thread.data.labelIds?.includes('UNREAD');
+
+  if (!isUnread) {
+    // Nếu mail đã đọc nhưng chưa xử lý (ví dụ do restart app), kiểm tra tuổi
+    if (diffMinutes > 20) {
+      logInfo(`Mail mới nhất đã đọc và quá cũ (${diffMinutes} phút). Bỏ qua.`);
+      return;
+    } else {
+      logInfo(`Mail mới nhất đã đọc nhưng còn mới (${diffMinutes} phút). Tiếp tục xử lý...`);
+    }
   }
 
   // Nếu khác ID -> Có thư mới -> Xử lý
