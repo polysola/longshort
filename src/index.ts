@@ -5,17 +5,20 @@ import { getEnv } from "./config/env";
 import type { EnvConfig } from "./config/env";
 import { createGmailClient, fetchMessages, normalizeMessage, markMessageAsRead } from "./services/gmailService";
 import { analyzeMail } from "./services/geminiService";
-import { sendTelegramMessage } from "./services/telegramService";
+import { sendTelegramMessage, getTelegramUpdates } from "./services/telegramService";
+import { answerQuestion } from "./services/chatbotService";
 import { formatTelegramMessage } from "./utils/telegramFormatter";
 import type { NormalizedMail } from "./types/mail";
 import { logError, logInfo, logWarn } from "./utils/logger";
 import { AppError } from "./lib/errors";
 
 const OUTPUT_PATH = path.join(process.cwd(), "logs", "latest-mails.json");
-const POLLING_INTERVAL_MS = 10 * 60 * 1000; // 15 phút
+const POLLING_INTERVAL_MS = 10 * 60 * 1000; // 10 phút
 
 // Biến lưu trạng thái ID tin nhắn mới nhất đã xử lý
 let lastProcessedMsgId: string | null = null;
+let latestMailData: NormalizedMail | null = null; // Lưu mail mới nhất để bot trả lời câu hỏi
+let lastTelegramUpdateId: number = 0; // Offset cho Telegram updates
 
 const processMessage = async (
   env: EnvConfig,
@@ -176,7 +179,49 @@ const checkNewEmails = async (env: EnvConfig, gmailClient: gmail_v1.Gmail) => {
   if (normalized) {
     // Cập nhật ID đã xử lý
     lastProcessedMsgId = normalized.id;
+    latestMailData = normalized; // Lưu data mail để chatbot dùng
     await saveMailsToFile([normalized]);
+  }
+};
+
+// Xử lý tin nhắn từ Telegram (Chatbot)
+const handleTelegramMessages = async (env: EnvConfig) => {
+  try {
+    const updates = await getTelegramUpdates(env, lastTelegramUpdateId);
+
+    if (updates.length === 0) {
+      return;
+    }
+
+    for (const update of updates) {
+      // Cập nhật offset
+      lastTelegramUpdateId = update.update_id + 1;
+
+      // Chỉ xử lý tin nhắn text
+      if (!update.message || !update.message.text) {
+        continue;
+      }
+
+      const userMessage = update.message.text;
+      const chatId = update.message.chat.id;
+
+      // Kiểm tra xem có phải chat đúng không
+      if (chatId.toString() !== env.telegramChatId) {
+        logWarn("Nhận tin nhắn từ chat ID không đúng. Bỏ qua.", { chatId });
+        continue;
+      }
+
+      logInfo("Nhận câu hỏi từ người dùng:", { question: userMessage });
+
+      // Trả lời dựa trên mail mới nhất
+      const answer = await answerQuestion(env, userMessage, latestMailData);
+
+      // Gửi trả lời
+      await sendTelegramMessage(env, `💬 *Trả lời:*\n\n${answer}`);
+
+    }
+  } catch (error) {
+    logError("Lỗi khi xử lý tin nhắn Telegram.", { error: (error as Error).message });
   }
 };
 
@@ -187,15 +232,20 @@ const main = async () => {
     const env = getEnv();
     const gmailClient = createGmailClient(env);
 
-    logInfo(`Bắt đầu ứng dụng. Chu kỳ kiểm tra: ${POLLING_INTERVAL_MS / 60000} phút.`);
+    logInfo(`Bắt đầu ứng dụng. Chu kỳ kiểm tra Gmail: ${POLLING_INTERVAL_MS / 60000} phút.`);
+    logInfo("Bot Telegram đã sẵn sàng trả lời câu hỏi!");
     logInfo("Lưu ý: Lần chạy đầu tiên sẽ luôn xử lý mail mới nhất tìm thấy.");
 
     // Chạy vòng lặp vô tận
     while (true) {
+      // Kiểm tra email mới
       await checkNewEmails(env, gmailClient);
       
-      logInfo(`Đang chờ ${POLLING_INTERVAL_MS / 60000} phút cho lần kiểm tra tiếp theo...`);
-      await sleep(POLLING_INTERVAL_MS);
+      // Lắng nghe tin nhắn Telegram (chạy liên tục, không đợi interval)
+      await handleTelegramMessages(env);
+      
+      // Đợi 2 giây trước khi check Telegram tiếp (để không spam API)
+      await sleep(2000);
     }
 
   } catch (error) {

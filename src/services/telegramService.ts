@@ -67,3 +67,31 @@ export const sendTelegramMessage = async (config: EnvConfig, text: string) => {
     });
   }
 };
+
+// Lắng nghe tin nhắn từ Telegram (dùng Long Polling)
+export const getTelegramUpdates = async (config: EnvConfig, offset: number = 0): Promise<any[]> => {
+  try {
+    const url = `https://api.telegram.org/bot${config.telegramBotToken}/getUpdates`;
+    const response = await axios.get(url, {
+      params: {
+        offset,
+        timeout: 30, // Long polling 30s
+        allowed_updates: ['message']
+      }
+    });
+
+    if (response.data.ok) {
+      return response.data.result;
+    }
+
+    return [];
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new ExternalServiceError("Không thể lấy updates từ Telegram.", {
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+    }
+    throw error;
+  }
+};
