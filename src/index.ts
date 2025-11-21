@@ -6,10 +6,11 @@ import type { EnvConfig } from "./config/env";
 import { createGmailClient, fetchMessages, normalizeMessage, markMessageAsRead } from "./services/gmailService";
 import { analyzeMail } from "./services/geminiService";
 import { sendTelegramMessage, getTelegramUpdates } from "./services/telegramService";
-import { answerQuestion } from "./services/chatbotService";
+import { answerQuestion, formatBotReply } from "./services/chatbotService";
 import { formatTelegramMessage } from "./utils/telegramFormatter";
 import type { NormalizedMail } from "./types/mail";
 import { logError, logInfo, logWarn } from "./utils/logger";
+import { autoCommitAndPushLogs } from "./utils/gitHelper";
 import { AppError } from "./lib/errors";
 
 const OUTPUT_PATH = path.join(process.cwd(), "logs", "latest-mails.json");
@@ -17,27 +18,7 @@ const POLLING_INTERVAL_MS = 10 * 60 * 1000; // 10 phút
 
 // Biến lưu trạng thái ID tin nhắn mới nhất đã xử lý
 let lastProcessedMsgId: string | null = null;
-let latestMailData: NormalizedMail | null = null; // Lưu mail mới nhất để bot trả lời câu hỏi
 let lastTelegramUpdateId: number = 0; // Offset cho Telegram updates
-
-// Load mail data từ file logs khi khởi động
-const loadMailDataFromFile = async (): Promise<void> => {
-  try {
-    const fileContent = await fs.readFile(OUTPUT_PATH, "utf8");
-    const data = JSON.parse(fileContent);
-    
-    if (data.emails && data.emails.length > 0) {
-      latestMailData = data.emails[0]; // Lấy mail đầu tiên (mới nhất)
-      logInfo("Đã load mail data từ file logs.", { mailId: latestMailData?.id });
-    } else {
-      logInfo("File logs không có data mail nào.");
-    }
-  } catch (error) {
-    logWarn("Không thể load mail data từ file logs (có thể file chưa tồn tại).", { 
-      error: (error as Error).message 
-    });
-  }
-};
 
 const processMessage = async (
   env: EnvConfig,
@@ -123,8 +104,45 @@ const saveMailsToFile = async (mails: NormalizedMail[]) => {
     );
 
     logInfo("Đã lưu log email vào file JSON.", { file: OUTPUT_PATH });
+
+    // Tự động commit và push file logs lên Git
+    await autoCommitAndPushLogs(OUTPUT_PATH);
+    
   } catch (error) {
     logError("Không thể ghi file JSON.", { error: (error as Error).message });
+  }
+};
+
+// Lấy mail mới nhất trực tiếp từ Gmail (không qua file)
+const getLatestMailFromGmail = async (gmailClient: gmail_v1.Gmail): Promise<NormalizedMail | null> => {
+  try {
+    const query = "from:noti@vaibb.com";
+    const messages = await fetchMessages(gmailClient, query, 10);
+
+    if (messages.length === 0) {
+      return null;
+    }
+
+    // Sắp xếp theo internalDate GIẢM DẦN (mail mới nhất lên đầu)
+    const sortedMessages = messages.sort((a, b) => {
+      const dateA = parseInt(a.internalDate || "0");
+      const dateB = parseInt(b.internalDate || "0");
+      return dateB - dateA;
+    });
+
+    const latestMessage = sortedMessages[0];
+    
+    if (!latestMessage?.id) {
+      return null;
+    }
+
+    // Normalize mail để trả về
+    const normalized = normalizeMessage(latestMessage);
+    return normalized;
+    
+  } catch (error) {
+    logError("Không thể lấy mail mới nhất từ Gmail.", { error: (error as Error).message });
+    return null;
   }
 };
 
@@ -198,13 +216,12 @@ const checkNewEmails = async (env: EnvConfig, gmailClient: gmail_v1.Gmail) => {
   if (normalized) {
     // Cập nhật ID đã xử lý
     lastProcessedMsgId = normalized.id;
-    latestMailData = normalized; // Lưu data mail để chatbot dùng
     await saveMailsToFile([normalized]);
   }
 };
 
 // Xử lý tin nhắn từ Telegram (Chatbot)
-const handleTelegramMessages = async (env: EnvConfig) => {
+const handleTelegramMessages = async (env: EnvConfig, gmailClient: gmail_v1.Gmail) => {
   try {
     const updates = await getTelegramUpdates(env, lastTelegramUpdateId);
 
@@ -232,14 +249,45 @@ const handleTelegramMessages = async (env: EnvConfig) => {
 
       logInfo("Nhận câu hỏi từ người dùng:", { question: userMessage });
 
-      // Gửi tin nhắn "đang xử lý" ngay lập tức
-      await sendTelegramMessage(env, "⏳ Đang lấy dữ liệu và phân tích, vui lòng đợi...");
+      // Gửi tin nhắn "đang xử lý" ngay lập tức với format đẹp
+      const processingMsg = `
+🔄 *ĐANG XỬ LÝ...*
+
+📥 Đang lấy email mới nhất từ Gmail
+🤖 Đang phân tích dữ liệu với AI
+⏱️ Vui lòng đợi trong giây lát...
+`;
+      await sendTelegramMessage(env, processingMsg);
+
+      // Lấy mail mới nhất trực tiếp từ Gmail
+      const latestMail = await getLatestMailFromGmail(gmailClient);
+
+      if (!latestMail) {
+        const errorMsg = `
+❌ *KHÔNG TÌM THẤY DỮ LIỆU*
+
+Không có email nào từ noti@vaibb.com trong hộp thư.
+Vui lòng thử lại sau hoặc kiểm tra nguồn email.
+`;
+        await sendTelegramMessage(env, errorMsg);
+        continue;
+      }
 
       // Trả lời dựa trên mail mới nhất
-      const answer = await answerQuestion(env, userMessage, latestMailData);
+      const answer = await answerQuestion(env, userMessage, latestMail);
 
-      // Gửi trả lời
-      await sendTelegramMessage(env, `💬 *Trả lời:*\n\n${answer}`);
+      // Format mail date
+      const mailDate = new Date(latestMail.date).toLocaleString('vi-VN', { 
+        timeZone: 'Asia/Ho_Chi_Minh',
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      // Gửi trả lời với format đẹp
+      const formattedReply = formatBotReply(answer, mailDate);
+      await sendTelegramMessage(env, formattedReply);
 
     }
   } catch (error) {
@@ -256,11 +304,7 @@ const main = async () => {
 
     logInfo(`Bắt đầu ứng dụng. Chu kỳ kiểm tra Gmail: ${POLLING_INTERVAL_MS / 60000} phút.`);
     logInfo("Bot Telegram đã sẵn sàng trả lời câu hỏi!");
-    
-    // Load mail data từ file logs (nếu có)
-    await loadMailDataFromFile();
-    
-    logInfo("Lưu ý: Lần chạy đầu tiên sẽ luôn xử lý mail mới nhất tìm thấy.");
+    logInfo("Bot sẽ lấy mail mới nhất trực tiếp từ Gmail khi bạn hỏi.");
 
     // Chạy vòng lặp vô tận
     while (true) {
@@ -268,7 +312,7 @@ const main = async () => {
       await checkNewEmails(env, gmailClient);
       
       // Lắng nghe tin nhắn Telegram (chạy liên tục, không đợi interval)
-      await handleTelegramMessages(env);
+      await handleTelegramMessages(env, gmailClient);
       
       // Đợi 2 giây trước khi check Telegram tiếp (để không spam API)
       await sleep(2000);
