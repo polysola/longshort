@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 60
+    }
+  },
+  "routes": [
+    {
+      "src": "/cron",
+      "dest": "/api/cron"
+    },
+    {
+      "src": "/",
+      "dest": "/api"
+    }
+  ]
+}
