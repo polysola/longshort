@@ -6,14 +6,14 @@
       "schedule": "*/10 * * * *"
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/cron",
-      "dest": "/api/cron"
+      "source": "/",
+      "destination": "/api/index"
     },
     {
-      "src": "/",
-      "dest": "/api/index"
+      "source": "/cron",
+      "destination": "/api/cron"
     }
   ]
 }
