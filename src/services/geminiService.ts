@@ -54,11 +54,11 @@ const sanitizeActionItems = (items?: RawAnalysis["actionItems"]): ActionItem[] =
   if (!Array.isArray(items)) return [];
   return items
     .filter((item): item is ActionItem => typeof item?.title === "string" && item.title.trim().length > 0)
-    .map((item) => ({
+    .map((item): ActionItem => ({
       title: item.title.trim(),
-      owner: item.owner?.trim(),
-      dueDate: item.dueDate?.trim(),
-      priority: item.priority?.trim(),
+      owner: item.owner ? item.owner.trim() : undefined,
+      dueDate: item.dueDate ? item.dueDate.trim() : undefined,
+      priority: item.priority ? item.priority.trim() : undefined,
     }));
 };
 
@@ -66,14 +66,14 @@ const sanitizeSignals = (items?: TradingSignal[]): TradingSignal[] => {
   if (!Array.isArray(items)) return [];
   return items
     .filter((item) => item && typeof item.symbol === "string")
-    .map((item) => ({
+    .map((item): TradingSignal => ({
       symbol: item.symbol.trim().toUpperCase(),
-      direction: ["LONG", "SHORT", "STAY_OUT", "NEUTRAL"].includes(item.direction) ? item.direction : "NEUTRAL",
-      entry: item.entry?.trim(),
-      stopLoss: item.stopLoss?.trim(),
+      direction: ["LONG", "SHORT", "STAY_OUT", "NEUTRAL"].includes(item.direction) ? (item.direction as any) : "NEUTRAL",
+      entry: item.entry ? item.entry.trim() : undefined,
+      stopLoss: item.stopLoss ? item.stopLoss.trim() : undefined,
       takeProfits: Array.isArray(item.takeProfits) ? item.takeProfits : [],
-      reason: item.reason?.trim(),
-      timeframe: item.timeframe?.trim(),
+      reason: item.reason ? item.reason.trim() : undefined,
+      timeframe: item.timeframe ? item.timeframe.trim() : undefined,
     }));
 };
 

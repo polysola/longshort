@@ -15,19 +15,19 @@ export type NormalizedMail = {
 
 export type ActionItem = {
   title: string;
-  owner?: string;
-  dueDate?: string;
-  priority?: string;
+  owner?: string | undefined;
+  dueDate?: string | undefined;
+  priority?: string | undefined;
 };
 
 export type TradingSignal = {
   symbol: string;
   direction: "LONG" | "SHORT" | "NEUTRAL" | "STAY_OUT";
-  entry?: string;
-  stopLoss?: string;
+  entry?: string | undefined;
+  stopLoss?: string | undefined;
   takeProfits?: string[];
-  reason?: string;
-  timeframe?: string; // Ví dụ: 1h, 4h, 15m
+  reason?: string | undefined;
+  timeframe?: string | undefined; // Ví dụ: 1h, 4h, 15m
 };
 
 export type AnalysisResult = {
