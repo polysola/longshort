@@ -2,11 +2,11 @@
   "name": "gmailfuturecoin",
   "version": "1.0.0",
   "description": "Tự động phân tích Gmail và gửi kết quả sang Telegram.",
-  "main": "dist/index.js",
+  "main": "dist/src/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "rimraf dist && tsc -p tsconfig.json",
-    "start": "node dist/index.js"
+    "start": "node dist/src/index.js"
   },
   "keywords": [],
   "author": "",
