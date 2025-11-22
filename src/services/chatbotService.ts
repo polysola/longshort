@@ -3,6 +3,7 @@ import { EnvConfig } from "../config/env";
 import { NormalizedMail } from "../types/mail";
 import { ExternalServiceError } from "../lib/errors";
 import { logDebug, logInfo } from "../utils/logger";
+import { ENTRY_SCORE_RULES } from "../config/scoringRules";
 
 // ═══════════════════════════════════════════════════════════
 // CONVERSATION HISTORY - Lưu 5 câu hỏi/trả lời gần nhất
@@ -187,15 +188,8 @@ Bước 1: Kiểm tra email có chứa thông tin được hỏi không?
 
 Bước 2: Trích xuất CHÍNH XÁC dữ liệu từ email (không thêm/bớt/sửa)
 
-Bước 3: Tính điểm gợi ý vào lệnh (0-100) nếu có tín hiệu LONG/SHORT:
-   - Ưu tiên lấy Edge Score từ email nếu có (scale 0-7)
-   - Tính R:R từ Entry/SL/TP hoặc lấy từ cột "RR (TP-SL)" (VD: "1.3/2.5/4.0")
-   - Xem xét Trend Strength (Down-trend strong, Up-trend strong, ADX > 25)
-   - Đánh giá Market Context (Fear-Greed Index, Volatility, Market Overview)
-   - Công thức: RR(35đ) + Edge/Trend(30đ) + Market(20đ) + Classification(15đ) = 0-100
-   - Thang điểm: 90-100 (Cực tốt 🔥🔥🔥), 75-89 (Tốt ⭐⭐), 60-74 (Khá ⭐), 40-59 (Trung bình ⚠️), 0-39 (Yếu ❌)
-   - BẮT BUỘC hiển thị score nếu có entry + SL + TP
-   - Nếu email ghi "STAY_OUT" → score = 0-20
+Bước 3: Tính điểm gợi ý vào lệnh (0-100) - ÁP DỤNG CÙNG QUY TẮC VỚI PHÂN TÍCH EMAIL:
+${ENTRY_SCORE_RULES}
 
 Bước 4: Format câu trả lời:
    - Liệt kê thông tin rõ ràng với box separator ━━━
