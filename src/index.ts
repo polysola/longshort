@@ -14,11 +14,13 @@ import { autoCommitAndPushLogs } from "./utils/gitHelper";
 import { AppError } from "./lib/errors";
 
 const OUTPUT_PATH = path.join(process.cwd(), "logs", "latest-mails.json");
-const POLLING_INTERVAL_MS = 10 * 60 * 1000; // 10 phút
+const GMAIL_CHECK_INTERVAL_MS = 1 * 60 * 1000; // 1 phút - Check Gmail
+const TELEGRAM_CHECK_INTERVAL_MS = 2 * 1000; // 2 giây - Check Telegram (realtime)
 
 // Biến lưu trạng thái ID tin nhắn mới nhất đã xử lý
 let lastProcessedMsgId: string | null = null;
 let lastTelegramUpdateId: number = 0; // Offset cho Telegram updates
+let lastGmailCheckTime: number = 0; // Timestamp lần check Gmail cuối cùng
 
 const processMessage = async (
   env: EnvConfig,
@@ -302,20 +304,26 @@ const main = async () => {
     const env = getEnv();
     const gmailClient = createGmailClient(env);
 
-    logInfo(`Bắt đầu ứng dụng. Chu kỳ kiểm tra Gmail: ${POLLING_INTERVAL_MS / 60000} phút.`);
+    logInfo(`Bắt đầu ứng dụng.`);
+    logInfo(`📧 Gmail: Check mỗi ${GMAIL_CHECK_INTERVAL_MS / 60000} phút`);
+    logInfo(`💬 Telegram: Check realtime (mỗi ${TELEGRAM_CHECK_INTERVAL_MS / 1000} giây)`);
     logInfo("Bot Telegram đã sẵn sàng trả lời câu hỏi!");
-    logInfo("Bot sẽ lấy mail mới nhất trực tiếp từ Gmail khi bạn hỏi.");
 
     // Chạy vòng lặp vô tận
     while (true) {
-      // Kiểm tra email mới
-      await checkNewEmails(env, gmailClient);
+      const now = Date.now();
       
-      // Lắng nghe tin nhắn Telegram (chạy liên tục, không đợi interval)
+      // Kiểm tra Gmail chỉ khi đã qua 1 phút kể từ lần check cuối
+      if (now - lastGmailCheckTime >= GMAIL_CHECK_INTERVAL_MS) {
+        await checkNewEmails(env, gmailClient);
+        lastGmailCheckTime = now;
+      }
+      
+      // Lắng nghe tin nhắn Telegram (chạy mỗi vòng lặp = realtime)
       await handleTelegramMessages(env, gmailClient);
       
-      // Đợi 2 giây trước khi check Telegram tiếp (để không spam API)
-      await sleep(2000);
+      // Đợi 2 giây trước khi lặp lại (Telegram check mỗi 2s)
+      await sleep(TELEGRAM_CHECK_INTERVAL_MS);
     }
 
   } catch (error) {
