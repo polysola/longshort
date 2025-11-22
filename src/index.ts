@@ -315,7 +315,7 @@ const main = async () => {
       await handleTelegramMessages(env, gmailClient);
       
       // Đợi 2 giây trước khi check Telegram tiếp (để không spam API)
-      await sleep(60000);
+      await sleep(2000);
     }
 
   } catch (error) {
