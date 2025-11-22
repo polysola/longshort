@@ -7,6 +7,15 @@ import { logDebug, logInfo } from "../utils/logger";
 // ═══════════════════════════════════════════════════════════
 // CONVERSATION HISTORY - Lưu 5 câu hỏi/trả lời gần nhất
 // ═══════════════════════════════════════════════════════════
+// Sử dụng Multi-turn Conversation để bot hiểu ngữ cảnh liên tục
+// Ví dụ:
+//   User: "BTC có tín hiệu gì?"
+//   Bot: "BTC có tín hiệu LONG, entry 83439..."
+//   User: "Còn ETH thì sao?" ← Bot hiểu "còn...thì sao" = hỏi về tín hiệu ETH
+//   Bot: "ETH có tín hiệu SHORT, entry 3200..."
+//   User: "Entry của BTC là bao nhiêu?" ← Bot nhớ đã nói về BTC ở câu đầu
+//   Bot: "Entry của BTC là 83,439 USDT (như đã đề cập trước đó)"
+// ═══════════════════════════════════════════════════════════
 type ConversationItem = {
   question: string;
   answer: string;
@@ -42,35 +51,47 @@ const addToHistory = (question: string, answer: string, mailDate?: string): void
   });
 };
 
-// Lấy lịch sử để đưa vào prompt
-const getHistoryContext = (): string => {
-  if (conversationHistory.length === 0) {
-    return "LỊCH SỬ: Chưa có cuộc hội thoại trước đó.";
-  }
+// Chuyển đổi lịch sử thành conversation history cho Gemini
+// Format: [{ role: "user", parts: [{text}] }, { role: "model", parts: [{text}] }, ...]
+const buildConversationHistory = () => {
+  const history: Array<{ role: string; parts: Array<{ text: string }> }> = [];
   
-  let context = "\n━━━━━━━━━━━━━━━━━━━━━━\n";
-  context += "📚 LỊCH SỬ 5 CÂU HỎI GẦN NHẤT:\n";
-  context += "━━━━━━━━━━━━━━━━━━━━━━\n";
+  // Reverse để lấy từ cũ đến mới (Gemini yêu cầu thứ tự thời gian)
+  const sortedHistory = [...conversationHistory].reverse();
   
-  conversationHistory.forEach((item, index) => {
-    const time = item.timestamp.toLocaleString('vi-VN', { 
-      timeZone: 'Asia/Ho_Chi_Minh',
-      hour: '2-digit',
-      minute: '2-digit'
+  sortedHistory.forEach((item) => {
+    // User message
+    history.push({
+      role: "user",
+      parts: [{ text: item.question }]
     });
     
-    context += `\n${index + 1}️⃣ [${time}] CÂU HỎI: "${item.question}"\n`;
-    context += `   💬 TRẢ LỜI: ${item.answer.substring(0, 200)}...\n`;
+    // Model response
+    history.push({
+      role: "model",
+      parts: [{ text: item.answer }]
+    });
   });
   
-  context += "\n⚠️ LƯU Ý KHI SỬ DỤNG LỊCH SỬ:\n";
-  context += "- Chỉ tham khảo lịch sử nếu câu hỏi HIỆN TẠI liên quan (VD: 'còn ETH thì sao?', 'coin nào khác?')\n";
-  context += "- LUÔN ƯU TIÊN dữ liệu email mới nhất\n";
-  context += "- KHÔNG lấy thông tin từ lịch sử nếu câu hỏi hoàn toàn mới/không liên quan\n";
-  context += "- KHÔNG bịa thêm thông tin dựa trên lịch sử\n";
-  context += "━━━━━━━━━━━━━━━━━━━━━━\n\n";
-  
-  return context;
+  return history;
+};
+
+// Export helper để debug conversation history
+export const getConversationHistoryDebug = () => {
+  return conversationHistory.map((item, index) => ({
+    index: index + 1,
+    question: item.question,
+    answer: item.answer.substring(0, 100) + "...",
+    timestamp: item.timestamp.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
+    mailDate: item.mailDate
+  }));
+};
+
+// Reset conversation history (nếu cần bắt đầu cuộc hội thoại mới)
+export const resetConversationHistory = () => {
+  const oldLength = conversationHistory.length;
+  conversationHistory = [];
+  logInfo("Đã reset conversation history.", { oldLength });
 };
 
 // Hàm trả lời câu hỏi dựa trên data mail
@@ -85,8 +106,8 @@ export const answerQuestion = async (
   });
 
   try {
-    // Lấy lịch sử 5 câu hỏi gần nhất
-    const historyContext = getHistoryContext();
+    // Build conversation history cho Gemini (multi-turn conversation)
+    const conversationHistoryArray = buildConversationHistory();
     
     let contextData = "KHÔNG CÓ DỮ LIỆU EMAIL NÀO.";
     
@@ -110,7 +131,14 @@ NGUYÊN TẮC QUAN TRỌNG NHẤT:
 3. ⚠️ Nếu email KHÔNG chứa thông tin cần thiết → Nói rõ: "❌ Email không có thông tin về [vấn đề X]"
 4. ⚠️ KHÔNG sử dụng kiến thức chung về crypto để thêm thông tin không có trong email
 
-${historyContext}
+NGUYÊN TẮC VỀ NGỮ CẢNH HỘI THOẠI:
+━━━━━━━━━━━━━━━━━━━━━━
+- Bạn đang trong một cuộc hội thoại liên tục với người dùng
+- Nếu câu hỏi liên quan đến câu trả lời trước (VD: "còn ETH thì sao?", "Entry là bao nhiêu?", "coin nào khác?"):
+  → Hiểu ngữ cảnh và trả lời dựa trên dữ liệu email hiện tại
+- Nếu câu hỏi hoàn toàn mới và không liên quan:
+  → Trả lời độc lập dựa trên email
+- LUÔN ưu tiên dữ liệu email mới nhất, KHÔNG dựa vào memory cũ nếu email không có thông tin đó
 
 CÁC NHIỆM VỤ:
 ━━━━━━━━━━━━━━━━━━━━━━
@@ -156,7 +184,7 @@ Bước 3: Format câu trả lời:
 
 Bước 4: Kiểm tra lại lần cuối:
    - Có bịa thông tin nào không? → XÓA ngay
-   - Có thuật ngữ nào chưa giải thích? → THÊM giải thích
+   - Có thuật ngữ nào chưa giải thích? → THÊM giải thích sâu và dễ hiểu
 
 VÍ DỤ TRẢ LỜI TỐT:
 ━━━━━━━━━━━━━━━━━━━━━━
@@ -183,11 +211,26 @@ Câu hỏi: "BTC có tín hiệu gì không?"
 
 HÃY BẮT ĐẦU TRẢ LỜI!`;
 
+    // Build contents array với conversation history
+    const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [
+      // System prompt (đặt ở đầu như một "user" message để set context)
+      { role: "user", parts: [{ text: systemPrompt }] },
+      { role: "model", parts: [{ text: "Đã hiểu! Tôi sẽ trả lời DỰA TRÊN DỮ LIỆU EMAIL, KHÔNG BỊA, giải thích thuật ngữ rõ ràng, và duy trì ngữ cảnh hội thoại. Hãy hỏi tôi!" }] },
+      
+      // Thêm conversation history (5 câu gần nhất)
+      ...conversationHistoryArray,
+      
+      // Câu hỏi hiện tại
+      { role: "user", parts: [{ text: question }] }
+    ];
+
+    logInfo("Đang gửi request đến Gemini với conversation history.", {
+      historyLength: conversationHistoryArray.length,
+      totalMessages: contents.length
+    });
+
     const result = await model.generateContent({
-      contents: [
-        { role: "user", parts: [{ text: systemPrompt }] },
-        { role: "user", parts: [{ text: `Câu hỏi: ${question}` }] }
-      ],
+      contents: contents,
     });
 
     const answer = result.response.text() || "❌ Xin lỗi, tôi không thể trả lời câu hỏi này.";
