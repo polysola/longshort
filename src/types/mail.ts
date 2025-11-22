@@ -28,6 +28,7 @@ export type TradingSignal = {
   takeProfits?: string[];
   reason?: string | undefined;
   timeframe?: string | undefined; // Ví dụ: 1h, 4h, 15m
+  entryScore?: number | undefined; // Điểm đánh giá vào lệnh (0-100) - càng cao càng tốt
 };
 
 export type AnalysisResult = {

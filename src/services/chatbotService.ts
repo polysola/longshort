@@ -146,6 +146,8 @@ A. TRÍCH XUẤT DỮ LIỆU:
    - Đọc kỹ email và trích xuất CHÍNH XÁC thông tin được hỏi
    - Trích dẫn GIÁ TRỊ CỤ THỂ từ email (số, giá, phần trăm)
    - KHÔNG làm tròn, thay đổi hoặc ước lượng số liệu
+   - Tìm các thông tin chuyên ngành: Edge Score, RR (Risk:Reward), ADX, Fear-Greed Index, Classification, Volatility
+   - Chú ý các bảng trong email (thường có Entry, SL, TP1, TP2, TP3, RR, Edge Score)
 
 B. GIẢI THÍCH THUẬT NGỮ:
    - Khi trả lời có thuật ngữ chuyên ngành → LUÔN LUÔN giải thích ngay sau thuật ngữ đó
@@ -159,13 +161,21 @@ B. GIẢI THÍCH THUẬT NGỮ:
      * **Timeframe** (Khung thời gian - VD: 1h = biểu đồ 1 giờ, 4h = biểu đồ 4 giờ)
      * **Support/Resistance** (Hỗ trợ/Kháng cự - Vùng giá thường dừng/đảo chiều)
      * **Breakout** (Phá vỡ - Giá vượt qua vùng quan trọng)
-     * **R:R hay Risk:Reward** (Tỷ lệ rủi ro/lợi nhuận - VD: R:R 1:3 = Rủi ro 1$ để kiếm 3$)
+     * **R:R hay Risk:Reward** (Tỷ lệ rủi ro/lợi nhuận - VD: R:R 1:3 = Rủi ro 1$ để kiếm 3$, hoặc "RR = 1.3/2.5/4.0" trong email)
+     * **Edge Score** (Điểm mạnh tín hiệu từ email - Scale 0-7, càng cao càng tốt)
+     * **Gợi ý vào lệnh** (Điểm đánh giá 0-100 - Càng cao càng tốt, dựa trên Edge Score, R:R, Trend Strength, Market Context)
+     * **ADX** (Chỉ số xu hướng - ADX > 25 = xu hướng mạnh, ADX < 20 = sideway yếu)
+     * **Fear-Greed Index** (Chỉ số tâm lý thị trường - < 20 = Fear tốt cho SHORT, > 70 = Greed tốt cho LONG)
+     * **Volatility** (Độ biến động - "high" hoặc "very_high" trong email)
+     * **Classification** (Phân loại - "decrease" = giảm mạnh, "increase" = tăng mạnh, "chaos" = hỗn loạn, "stay_out" = không vào)
 
-C. FORMAT TRẢ LỜI:
-   - Cấu trúc rõ ràng với bullet points (•) hoặc numbered list
-   - Dùng emoji phù hợp: 📊 💰 🎯 🛑 ⚡ 📈 📉 🟢 🔴 ⚠️ ✅ ❌
-   - Highlight thông tin quan trọng bằng **bold**
-   - Tách đoạn để dễ đọc
+C. FORMAT TRẢ LỜI CHUYÊN NGHIỆP:
+   - Dùng box/separator để tách phần (━━━━━━━━━━)
+   - Icon phù hợp: 📊💰🎯🛑⚡📈📉🟢🔴⚠️✅❌🔥⭐💡📥
+   - **Bold** cho keywords quan trọng, _italic_ cho ghi chú
+   - Code block \`...\` cho số liệu (giá, TP, SL)
+   - Bullet points (•) hoặc ╰─ cho sub-items
+   - LUÔN format như ví dụ mẫu bên dưới
 
 ${contextData}
 
@@ -177,37 +187,64 @@ Bước 1: Kiểm tra email có chứa thông tin được hỏi không?
 
 Bước 2: Trích xuất CHÍNH XÁC dữ liệu từ email (không thêm/bớt/sửa)
 
-Bước 3: Format câu trả lời:
-   - Liệt kê thông tin rõ ràng
+Bước 3: Tính điểm gợi ý vào lệnh (0-100) nếu có tín hiệu LONG/SHORT:
+   - Ưu tiên lấy Edge Score từ email nếu có (scale 0-7)
+   - Tính R:R từ Entry/SL/TP hoặc lấy từ cột "RR (TP-SL)" (VD: "1.3/2.5/4.0")
+   - Xem xét Trend Strength (Down-trend strong, Up-trend strong, ADX > 25)
+   - Đánh giá Market Context (Fear-Greed Index, Volatility, Market Overview)
+   - Công thức: RR(35đ) + Edge/Trend(30đ) + Market(20đ) + Classification(15đ) = 0-100
+   - Thang điểm: 90-100 (Cực tốt 🔥🔥🔥), 75-89 (Tốt ⭐⭐), 60-74 (Khá ⭐), 40-59 (Trung bình ⚠️), 0-39 (Yếu ❌)
+   - BẮT BUỘC hiển thị score nếu có entry + SL + TP
+   - Nếu email ghi "STAY_OUT" → score = 0-20
+
+Bước 4: Format câu trả lời:
+   - Liệt kê thông tin rõ ràng với box separator ━━━
    - Giải thích NGAY các thuật ngữ chuyên ngành
-   - Dùng emoji để dễ nhìn
+   - Dùng emoji và code block \`...\` cho số liệu
+   - Thêm score ngay dưới phần TP
 
-Bước 4: Kiểm tra lại lần cuối:
+Bước 5: Kiểm tra lại lần cuối:
    - Có bịa thông tin nào không? → XÓA ngay
-   - Có thuật ngữ nào chưa giải thích? → THÊM giải thích sâu và dễ hiểu
+   - Có thuật ngữ nào chưa giải thích? → THÊM giải thích
+   - Có tín hiệu LONG/SHORT mà thiếu score? → THÊM score sâu và dễ hiểu
 
-VÍ DỤ TRẢ LỜI TỐT:
+VÍ DỤ TRẢ LỜI CHUYÊN NGHIỆP:
 ━━━━━━━━━━━━━━━━━━━━━━
 Câu hỏi: "BTC có tín hiệu gì không?"
 
-✅ TRẢ LỜI TỐT:
-"🟢 **BTCUSDT** có tín hiệu **LONG** (Mua lên)
+✅ TRẢ LỜI TỐT (CHUYÊN NGHIỆP):
 
-📍 **Entry** (Điểm vào lệnh): 83,439 USDT
-🛑 **Stop Loss** (Cắt lỗ): 84,100 USDT
-🎯 **Take Profit** (Chốt lời):
-   • TP1: 82,500
-   • TP2: 81,800
-   • TP3: 81,000
+"━━━━━━━━━━━━━━━━━━━━━━
+🔴 **BTCUSDT** - TÍN HIỆU SHORT
+━━━━━━━━━━━━━━━━━━━━━━
 
-⏰ **Timeframe** (Khung thời gian): 1h (Biểu đồ 1 giờ)
-💡 **Lý do**: Email đề cập "xu hướng giảm ngắn hạn sau khi test vùng kháng cự"
+📥 **Entry** (Điểm vào lệnh)
+   \`83,224.63 USDT\`
 
-⚠️ **Lưu ý**: R:R (Tỷ lệ rủi ro/lợi nhuận) khoảng 1:3 - rủi ro nhỏ hơn lợi nhuận."
+🛑 **Stop Loss** (Cắt lỗ)
+   \`84,573.09 USDT\`
+
+🎯 **Take Profit** (Chốt lời)
+   • TP1: \`81,471.63\`
+   • TP2: \`79,853.47\`
+   • TP3: \`77,830.78\`
+
+📊 **Gợi ý vào lệnh: 100/100** 🔥🔥🔥 _CỰC TỐT_
+   ╰─ Edge Score 7, RR 1.3/2.5/4.0 (rủi ro 1, lời 4)
+   ╰─ ADX mạnh, Fear-Greed = 11 (Extreme Fear)
+
+⏱ **Timeframe**: 1h (Stop-breakout)
+💡 **Lý do**: _Down-trend strong, ADX > 25, thị trường cực kỳ sợ hãi_
+
+━━━━━━━━━━━━━━━━━━━━━━"
 
 ❌ TRẢ LỜI XẤU (BỊA THÔNG TIN):
 "BTC đang có xu hướng tăng mạnh, bạn nên mua ở 83,000 và chốt lời ở 90,000" 
 → SAI vì email không nói 90,000!
+
+❌ TRẢ LỜI XẤU (KHÔNG CÓ SCORE):
+"BTC có tín hiệu LONG, entry 83,439..."
+→ SAI vì thiếu điểm đánh giá (entryScore)
 
 HÃY BẮT ĐẦU TRẢ LỜI!`;
 
@@ -248,7 +285,7 @@ HÃY BẮT ĐẦU TRẢ LỜI!`;
   }
 };
 
-// Format tin nhắn trả lời đẹp mắt
+// Format tin nhắn trả lời chuyên nghiệp
 export const formatBotReply = (answer: string, mailDate?: string): string => {
   const timestamp = new Date().toLocaleString('vi-VN', { 
     timeZone: 'Asia/Ho_Chi_Minh',
@@ -258,16 +295,17 @@ export const formatBotReply = (answer: string, mailDate?: string): string => {
     month: '2-digit'
   });
 
-  let header = `╔═══════════════════════╗\n`;
-  header += `║  🤖 *CRYPTO ASSISTANT*  ║\n`;
-  header += `╚═══════════════════════╝\n\n`;
+  let header = `\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
+  header += `┃  🤖 *AI CRYPTO ADVISOR*     ┃\n`;
+  header += `┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
 
-  let footer = `\n\n━━━━━━━━━━━━━━━━━━━━━━\n`;
-  footer += `⏰ *Trả lời lúc:* ${timestamp}\n`;
+  let footer = `\n\n╭───────────────────────────╮\n`;
+  footer += `│ ⏰ *Trả lời:* ${timestamp}\n`;
   if (mailDate) {
-    footer += `📧 *Dữ liệu từ email:* ${mailDate}\n`;
+    footer += `│ 📧 *Data:* ${mailDate}\n`;
   }
-  footer += `━━━━━━━━━━━━━━━━━━━━━━`;
+  footer += `│ 💡 *Tip:* Luôn DYOR và quản lý rủi ro\n`;
+  footer += `╰───────────────────────────╯`;
 
   return header + answer + footer;
 };

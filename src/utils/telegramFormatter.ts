@@ -15,23 +15,57 @@ const getSignalIcon = (direction: string) => {
   }
 };
 
+const getScoreDisplay = (score?: number): string => {
+  if (!score) return "";
+  
+  let icon = "";
+  let label = "";
+  
+  if (score >= 90) {
+    icon = "🔥🔥🔥";
+    label = "CỰC TỐT";
+  } else if (score >= 75) {
+    icon = "⭐⭐";
+    label = "TỐT";
+  } else if (score >= 60) {
+    icon = "⭐";
+    label = "KHÁ";
+  } else if (score >= 40) {
+    icon = "⚠️";
+    label = "TRUNG BÌNH";
+  } else {
+    icon = "❌";
+    label = "YẾU";
+  }
+  
+  return `\n   ╰─ 📊 *GỢI Ý VÀO LỆNH: ${score}/100* ${icon} _${label}_`;
+};
+
 const formatSignal = (signal: TradingSignal): string => {
   const parts = [
-    `--------------------------------`,
-    `🔹 *${escapeText(signal.symbol)}* ${signal.timeframe ? `(${escapeText(signal.timeframe)})` : ""}`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `🔹 *${escapeText(signal.symbol)}* ${signal.timeframe ? `⏱ ${escapeText(signal.timeframe)}` : ""}`,
     `   ${getSignalIcon(signal.direction)}`,
   ];
 
   if (signal.direction === "LONG" || signal.direction === "SHORT") {
-    if (signal.entry) parts.push(`   📥 Entry: ${escapeText(signal.entry)}`);
-    if (signal.stopLoss) parts.push(`   🛑 SL: ${escapeText(signal.stopLoss)}`);
+    if (signal.entry) parts.push(`   📥 *Entry:* \`${escapeText(signal.entry)}\``);
+    if (signal.stopLoss) parts.push(`   🛑 *Stop Loss:* \`${escapeText(signal.stopLoss)}\``);
     if (signal.takeProfits && signal.takeProfits.length > 0) {
-      parts.push(`   🎯 TP: ${signal.takeProfits.map(escapeText).join(" | ")}`);
+      parts.push(`   🎯 *Take Profit:*`);
+      signal.takeProfits.forEach((tp, index) => {
+        parts.push(`      • TP${index + 1}: \`${escapeText(tp)}\``);
+      });
+    }
+    
+    // Thêm score ngay dưới TP
+    if (signal.entryScore) {
+      parts.push(getScoreDisplay(signal.entryScore));
     }
   }
 
   if (signal.reason) {
-    parts.push(`   📝 ${escapeText(signal.reason)}`);
+    parts.push(`   💡 *Lý do:* _${escapeText(signal.reason)}_`);
   }
 
   return parts.join("\n");
