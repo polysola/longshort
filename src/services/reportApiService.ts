@@ -413,7 +413,7 @@ export const needsTimeframeComparison = (question: string): boolean => {
     "lịch sử", "history", "historical",
     "các mốc", "các khung", "timeframe",
     "1h trước", "4h trước", "hôm qua", "yesterday",
-    "thay đổi", "change", "biến động",
+    "thay đổi", "change", "biến động","mốc","khung",
     "xu hướng", "trend",
     "tất cả report", "all reports",
     "các report", "danh sách report"
