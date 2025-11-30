@@ -14,9 +14,9 @@
 
 import { AnalysisResult, TradingSignal } from "../types/mail";
 
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 // Helper functions
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 
 /**
  * Escape HTML entities
@@ -74,9 +74,9 @@ const formatPrice = (price: string | number | undefined): string => {
   return num.toFixed(6);
 };
 
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 // Signal Formatter
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 
 const formatSignalDetailed = (signal: TradingSignal, index: number): string => {
   const emoji = getDirectionEmoji(signal.direction);
@@ -139,9 +139,9 @@ const formatSignalDetailed = (signal: TradingSignal, index: number): string => {
   return lines.join("\n");
 };
 
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 // Main Formatter
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 
 export const formatTelegramMessage = (analysis: AnalysisResult): string => {
   // Phân loại signals
@@ -157,27 +157,27 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
 
   const lines: string[] = [];
   
-  // ═══════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════
   // HEADER
-  // ═══════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════
   lines.push(`📊 <b>BÁO CÁO TÍN HIỆU GIAO DỊCH</b>`);
-  lines.push(`══════════════════════════════`);
+  lines.push(`═══════════════`);
   lines.push(``);
   lines.push(`📝 <b>${escapeHtml(analysis.subject)}</b>`);
   lines.push(`🗣 Nguồn: ${escapeHtml(analysis.sender)}`);
   lines.push(``);
   
-  // ═══════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════
   // SUMMARY
-  // ═══════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════
   lines.push(`📌 <b>TỔNG QUAN THỊ TRƯỜNG</b>`);
   lines.push(`─────────────────────────────`);
   lines.push(`<i>${escapeHtml(analysis.summary)}</i>`);
   lines.push(``);
   
-  // ═══════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════
   // STATISTICS
-  // ═══════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════
   lines.push(`📈 <b>THỐNG KÊ</b>`);
   lines.push(`─────────────────────────────`);
   lines.push(`• Tổng tín hiệu: <b>${totalSignals}</b>`);
@@ -196,24 +196,24 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
   }
   lines.push(``);
   
-  // ═══════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════
   // LONG SIGNALS
-  // ═══════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════
   if (longSignals.length > 0) {
     lines.push(`🟢 <b>DANH SÁCH LONG (${longSignals.length})</b>`);
-    lines.push(`══════════════════════════════`);
+    lines.push(`═══════════════`);
     longSignals.forEach((signal, index) => {
       lines.push(formatSignalDetailed(signal, index));
     });
     lines.push(``);
   }
   
-  // ═══════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════
   // SHORT SIGNALS
-  // ═══════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════
   if (shortSignals.length > 0) {
     lines.push(`🔴 <b>DANH SÁCH SHORT (${shortSignals.length})</b>`);
-    lines.push(`══════════════════════════════`);
+    lines.push(`═══════════════`);
     shortSignals.forEach((signal, index) => {
       lines.push(formatSignalDetailed(signal, index));
     });
@@ -229,10 +229,10 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
     lines.push(``);
   }
   
-  // ═══════════════════════════════════════════════════════════
+  // ════════════════════════════════════════════
   // FOOTER
-  // ═══════════════════════════════════════════════════════════
-  lines.push(`══════════════════════════════`);
+  // ════════════════════════════════════════════
+  lines.push(`═══════════════`);
   lines.push(`🔖 Report ID: <code>${analysis.mailId}</code>`);
   lines.push(`🤖 Confidence: ${(analysis.confidence * 100).toFixed(0)}%`);
   lines.push(``);

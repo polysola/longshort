@@ -15,9 +15,9 @@ const OUTPUT_PATH = path.join(process.cwd(), "logs", "latest-reports.json");
 const API_CHECK_INTERVAL_MS = 30 * 1000; // 30 giây - Check API
 const TELEGRAM_CHECK_INTERVAL_MS = 2 * 1000; // 2 giây - Check Telegram (realtime)
 
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 // MEMORY - Lưu ID report đã xử lý
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 let lastProcessedReportId: string | null = null;
 let lastTelegramUpdateId: number = 0; // Offset cho Telegram updates
 let lastApiCheckTime: number = 0; // Timestamp lần check API cuối cùng
@@ -27,9 +27,9 @@ let cachedLatestReport: NormalizedReport | null = null;
 let cacheTimestamp: number = 0;
 const CACHE_TTL_MS = 60 * 1000; // Cache 1 phút
 
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 // PROCESS REPORT - Xử lý và gửi Telegram khi có report mới
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 const processReport = async (
   env: EnvConfig,
   report: NormalizedReport,
@@ -111,9 +111,9 @@ const saveReportsToFile = async (reports: NormalizedReport[]) => {
   }
 };
 
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 // GET REPORT - Lấy report với caching
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 const getLatestReportWithCache = async (): Promise<NormalizedReport | null> => {
   const now = Date.now();
   
@@ -137,9 +137,9 @@ const getLatestReportWithCache = async (): Promise<NormalizedReport | null> => {
   }
 };
 
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 // CHECK NEW REPORTS - Polling API và gửi Telegram khi có ID mới
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 const checkNewReports = async (env: EnvConfig) => {
   logDebug("Đang kiểm tra API reports...");
 
@@ -202,9 +202,9 @@ const checkNewReports = async (env: EnvConfig) => {
   }
 };
 
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 // HANDLE TELEGRAM MESSAGES - Chatbot với hỗ trợ timeframe comparison
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 const handleTelegramMessages = async (env: EnvConfig) => {
   try {
     const updates = await getTelegramUpdates(env, lastTelegramUpdateId);
@@ -329,9 +329,9 @@ Vui lòng thử lại sau.`;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 // MAIN - Entry point
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 const main = async () => {
   try {
     const env = getEnv();

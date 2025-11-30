@@ -1,8 +1,8 @@
 export type GmailHeaderMap = Record<string, string>;
 
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 // LEGACY: Gmail types (giữ lại để backward compatible)
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 export type NormalizedMail = {
   id: string;
   threadId: string;
@@ -16,9 +16,9 @@ export type NormalizedMail = {
   headers: GmailHeaderMap;
 };
 
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 // NEW: API Report types (từ https://first.fsignal.xyz/api/reports)
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 
 /**
  * Symbol snapshot từ API (chứa indicators, plan, etc.)
@@ -165,9 +165,9 @@ export type NormalizedReport = {
   snippet: string;
 };
 
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 // Trading Signal types
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 
 export type ActionItem = {
   title: string;

@@ -350,9 +350,9 @@ export const getActiveSignals = (
   return unique;
 };
 
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 // Hàm lấy reports theo timeframe (cho chat AI)
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 
 /**
  * Lấy danh sách tất cả reports với thông tin cơ bản (cho so sánh timeframe)
@@ -423,9 +423,9 @@ export const needsTimeframeComparison = (question: string): boolean => {
   return comparisonKeywords.some(keyword => lowerQuestion.includes(keyword));
 };
 
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 // Legacy functions (backward compatible)
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 
 /**
  * @deprecated Dùng fetchReportList + fetchReportDetail thay thế

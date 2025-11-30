@@ -5,9 +5,9 @@ import { ExternalServiceError } from "../lib/errors";
 import { logDebug, logInfo } from "../utils/logger";
 import { ENTRY_SCORE_RULES } from "../config/scoringRules";
 
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 // CONVERSATION HISTORY - Lưu 5 câu hỏi/trả lời gần nhất
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 type ConversationItem = {
   question: string;
   answer: string;
@@ -79,9 +79,9 @@ export const resetConversationHistory = () => {
   logInfo("Đã reset conversation history.", { oldLength });
 };
 
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 // BUILD CONTEXT DATA - Tạo context từ 1 hoặc nhiều reports
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 const buildContextData = (
   data: NormalizedReport | NormalizedReport[] | NormalizedMail | null
 ): string => {
@@ -98,9 +98,9 @@ const buildContextData = (
     logInfo("Building context từ nhiều reports.", { count: data.length });
 
     let context = `
-═══════════════════════════════════════════════════════════
+════════════════════════════════════════════
 📊 DỮ LIỆU NHIỀU REPORTS (${data.length} reports) - CHO SO SÁNH TIMEFRAME
-═══════════════════════════════════════════════════════════
+════════════════════════════════════════════
 
 `;
 
@@ -121,12 +121,12 @@ ${report.sectionsMarkdown.join("\n\n---\n\n")}
     });
 
     context += `
-═══════════════════════════════════════════════════════════
+════════════════════════════════════════════
 LƯU Ý KHI SO SÁNH:
 • So sánh giá Entry, SL, TP giữa các reports
 • Xem xu hướng thay đổi của tín hiệu (LONG → SHORT hoặc ngược lại)
 • Chú ý thời gian của từng report để biết độ mới
-═══════════════════════════════════════════════════════════
+════════════════════════════════════════════
 `;
 
     return context;
@@ -162,9 +162,9 @@ ${mail.htmlText || mail.plainText || mail.snippet}
 `;
 };
 
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 // ANSWER QUESTION - Hỗ trợ 1 hoặc nhiều reports
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════
 export const answerQuestion = async (
   config: EnvConfig,
   question: string,
