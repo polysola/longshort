@@ -3,7 +3,7 @@ import { EnvConfig } from "../config/env";
 import { NormalizedMail, NormalizedReport } from "../types/mail";
 import { ExternalServiceError } from "../lib/errors";
 import { logDebug, logInfo } from "../utils/logger";
-import { ENTRY_SCORE_RULES, VIETNAMESE_TERMS } from "../config/scoringRules";
+import { ENTRY_SCORE_RULES, TRADING_TERMS } from "../config/scoringRules";
 
 // ════════════════════════════════════════════
 // CONVERSATION HISTORY
@@ -141,16 +141,15 @@ ${mail.htmlText || mail.plainText || mail.snippet}
 };
 
 // ════════════════════════════════════════════
-// GENERATE VIETNAMESE TERMS GUIDE
+// GENERATE TERMS GUIDE
 // ════════════════════════════════════════════
 const generateTermsGuide = (): string => {
-  const terms = Object.entries(VIETNAMESE_TERMS)
-    .map(([en, { vi, explain }]) => `• ${en} = ${vi} (${explain})`)
+  const terms = Object.entries(TRADING_TERMS)
+    .map(([term, explain]) => `• <b>${term}</b>: ${explain}`)
     .join("\n");
   
   return `
-BẢNG THUẬT NGỮ TIẾNG VIỆT:
-━━━━━━━━━━━━━━━━━━━━━━
+BẢNG THUẬT NGỮ TRADING:
 ${terms}
 `;
 };
@@ -181,89 +180,62 @@ export const answerQuestion = async (
       hasData: !!data
     });
 
-    const systemPrompt = `Bạn là trợ lý phân tích tín hiệu Crypto chuyên nghiệp, LUÔN trả lời bằng TIẾNG VIỆT.
+    const systemPrompt = `Bạn là trợ lý phân tích tín hiệu Crypto chuyên nghiệp.
 
-═══════════════════════════════════════════════════════════
-NGUYÊN TẮC BẮT BUỘC:
-═══════════════════════════════════════════════════════════
-1. ⚠️ TUYỆT ĐỐI KHÔNG BỊA dữ liệu không có trong báo cáo
+NGUYÊN TẮC:
+1. ⚠️ KHÔNG BỊA dữ liệu không có trong báo cáo
 2. ⚠️ CHỈ trả lời dựa trên DỮ LIỆU BÁO CÁO bên dưới
-3. ⚠️ Nếu không có thông tin → Nói rõ: "❌ Báo cáo không có thông tin về [vấn đề]"
-4. ⚠️ LUÔN dùng thuật ngữ TIẾNG VIỆT (xem bảng bên dưới)
+3. ⚠️ Nếu không có thông tin → "❌ Báo cáo không có thông tin về [vấn đề]"
+4. ⚠️ GIỮ NGUYÊN thuật ngữ gốc: LONG, SHORT, Entry, SL, TP, R:R
 
 ${termsGuide}
 
-═══════════════════════════════════════════════════════════
 CÁCH TRẢ LỜI:
-═══════════════════════════════════════════════════════════
 
-A. KHI NGƯỜI DÙNG HỎI VỀ THUẬT NGỮ:
-   Giải thích chi tiết, dễ hiểu, có ví dụ cụ thể.
+A. KHI HỎI VỀ THUẬT NGỮ:
+   Giải thích chi tiết, dễ hiểu, có ví dụ.
    
    Ví dụ: "R:R là gì?"
-   → "📚 *R:R (Lợi nhuận/Rủi ro)*
+   → "📚 *R:R (Risk:Reward)*
    
-   Đây là tỷ lệ giữa số tiền có thể lời và số tiền có thể mất.
+   Tỷ lệ giữa tiền có thể lời và tiền có thể mất.
    
    _Ví dụ:_ R:R = 3.0 nghĩa là:
-   • Nếu đúng: Lời 3 phần
-   • Nếu sai: Mất 1 phần
+   • Đúng: Lời 3 phần
+   • Sai: Mất 1 phần
    
-   R:R càng cao càng tốt. Thường nên ≥ 2.0"
+   R:R ≥ 2.0 là tốt."
 
-B. KHI NGƯỜI DÙNG HỎI VỀ COIN CỤ THỂ:
-   Trích xuất CHÍNH XÁC từ báo cáo, format đẹp.
+B. KHI HỎI VỀ COIN:
+   Trích xuất CHÍNH XÁC, format gọn:
    
-   Ví dụ format:
-   ━━━━━━━━━━━━━━━━━━━━━━
-   🔴 *BTCUSDT* - BÁN
-   ━━━━━━━━━━━━━━━━━━━━━━
+   🔴 *BTCUSDT* SHORT
    
-   📊 *Điểm tín hiệu:* \`85\`/100 ⭐⭐⭐
-   🎯 *Điểm vào lệnh:* \`78\`/100 ⭐⭐
+   📊 Score: \`85\`/100 ⭐⭐⭐
+   📥 Entry: \`91,484\`
+   🛑 SL: \`93,200\`
+   🎯 TP: \`89,500\` → \`87,200\` → \`84,000\`
+   📈 R:R: 2.5
+   ⏱ 4h
    
-   📥 *Điểm vào:* \`91,484\` USDT
-   🛑 *Cắt lỗ:* \`93,200\` USDT
-   🎯 *Chốt lời:*
-      • Mức 1: \`89,500\`
-      • Mức 2: \`87,200\`
-      • Mức 3: \`84,000\`
-   
-   📈 *Lợi nhuận/Rủi ro:* 2.5
-   ⏱ *Khung giờ:* 4h
-   
-   💡 _Xu hướng giảm mạnh, ADX > 25_
-   ━━━━━━━━━━━━━━━━━━━━━━
+   💡 _Downtrend mạnh, ADX > 25, compression breakout_
 
-C. HỆ THỐNG CHẤM ĐIỂM (THANG 100):
+C. HỆ THỐNG ĐIỂM (0-100):
 ${ENTRY_SCORE_RULES}
 
 ${isMultipleReports ? `
-D. KHI SO SÁNH NHIỀU BÁO CÁO:
-   • So sánh thay đổi giữa các mốc thời gian
-   • Nêu rõ xu hướng: Tăng/Giảm/Đổi chiều
-   • Dùng bảng so sánh nếu cần
+D. SO SÁNH NHIỀU BÁO CÁO:
+   So sánh thay đổi, nêu xu hướng.
    
-   Ví dụ:
-   ━━━━━━━━━━━━━━━━━━━━━━
    📊 *SO SÁNH BTCUSDT*
-   ━━━━━━━━━━━━━━━━━━━━━━
    
-   📅 *Báo cáo 1* (19:50)
-      • Hướng: 🔴 BÁN
-      • Vào: \`91,484\`
-      • Điểm: 85/100
+   📅 *19:50* - 🔴 SHORT
+      Entry: \`91,484\` | Score: 85
    
-   📅 *Báo cáo 2* (18:50)
-      • Hướng: 🔴 BÁN  
-      • Vào: \`92,100\`
-      • Điểm: 78/100
+   📅 *18:50* - 🔴 SHORT
+      Entry: \`92,100\` | Score: 78
    
-   📈 *XU HƯỚNG:*
-      ╰─ Giữ nguyên BÁN
-      ╰─ Giá vào giảm 616 USDT
-      ╰─ Điểm tăng từ 78 → 85
-   ━━━━━━━━━━━━━━━━━━━━━━
+   📈 *Xu hướng:* Giữ SHORT, Entry giảm 616, Score tăng
 ` : ''}
 
 ═══════════════════════════════════════════════════════════

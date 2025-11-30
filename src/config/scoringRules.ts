@@ -104,52 +104,45 @@ LƯU Ý:
 `;
 
 // ════════════════════════════════════════════
-// THUẬT NGỮ TIẾNG VIỆT
+// THUẬT NGỮ - Giữ nguyên gốc + Giải thích tiếng Việt
 // ════════════════════════════════════════════
-export const VIETNAMESE_TERMS: { [key: string]: { vi: string; explain: string } } = {
-  // Hướng giao dịch
-  "LONG": { vi: "MUA LÊN", explain: "Đặt cược giá sẽ tăng" },
-  "SHORT": { vi: "BÁN XUỐNG", explain: "Đặt cược giá sẽ giảm" },
-  "STAY_OUT": { vi: "ĐỨNG NGOÀI", explain: "Không nên vào lệnh lúc này" },
+export const TRADING_TERMS: { [key: string]: string } = {
+  // Hướng giao dịch - GIỮ NGUYÊN
+  "LONG": "Mua lên - Đặt cược giá sẽ tăng. Lời khi giá tăng, lỗ khi giá giảm.",
+  "SHORT": "Bán xuống - Đặt cược giá sẽ giảm. Lời khi giá giảm, lỗ khi giá tăng.",
+  "STAY_OUT": "Đứng ngoài - Không nên vào lệnh lúc này vì điều kiện không thuận lợi.",
   
-  // Các mức giá
-  "Entry": { vi: "Điểm vào", explain: "Giá để mở lệnh" },
-  "Stop Loss": { vi: "Cắt lỗ", explain: "Giá tự động đóng lệnh để giới hạn thua lỗ" },
-  "Take Profit": { vi: "Chốt lời", explain: "Giá đóng lệnh để thu lợi nhuận" },
-  "Trigger": { vi: "Kích hoạt", explain: "Giá kích hoạt lệnh" },
+  // Các mức giá - GIỮ NGUYÊN
+  "Entry": "Điểm vào lệnh - Giá mà bạn mở vị thế mua/bán.",
+  "SL": "Stop Loss (Cắt lỗ) - Giá tự động đóng lệnh để giới hạn thua lỗ. VD: SL 100$ nghĩa là tối đa mất 100$.",
+  "TP": "Take Profit (Chốt lời) - Giá đóng lệnh để thu lợi nhuận. TP1, TP2, TP3 là các mức chốt lời dần.",
+  "Trigger": "Giá kích hoạt - Khi giá chạm mức này thì lệnh được kích hoạt.",
   
   // Chỉ số
-  "EdgeScore": { vi: "Điểm tín hiệu", explain: "Đánh giá độ mạnh tín hiệu kỹ thuật (0-100)" },
-  "EntryScore": { vi: "Điểm vào lệnh", explain: "Đánh giá tổng hợp để vào lệnh (0-100)" },
-  "R:R": { vi: "Lợi nhuận/Rủi ro", explain: "Tỷ lệ tiền có thể lời so với tiền có thể mất" },
-  "ADX": { vi: "Chỉ số xu hướng", explain: "Đo sức mạnh xu hướng (>25 = mạnh)" },
-  "Fear-Greed": { vi: "Chỉ số Sợ hãi-Tham lam", explain: "Tâm lý thị trường (0=Sợ hãi, 100=Tham lam)" },
+  "EdgeScore": "Điểm tín hiệu kỹ thuật (0-100). Đánh giá độ mạnh của setup dựa trên các chỉ báo. Càng cao càng tốt.",
+  "EntryScore": "Điểm vào lệnh tổng hợp (0-100). Kết hợp EdgeScore + R:R + xu hướng. ≥70 là tốt.",
+  "R:R": "Risk:Reward (Rủi ro:Lợi nhuận). VD: R:R = 3.0 nghĩa là lời 3$ cho mỗi 1$ rủi ro. Càng cao càng tốt.",
+  "ADX": "Chỉ số sức mạnh xu hướng. ADX > 25 = xu hướng mạnh, ADX < 20 = sideway.",
+  "Fear-Greed": "Chỉ số tâm lý thị trường. 0-25 = Sợ hãi (tốt cho SHORT), 75-100 = Tham lam (tốt cho LONG).",
   
   // Khung thời gian
-  "Timeframe": { vi: "Khung giờ", explain: "Khoảng thời gian của mỗi nến" },
-  "1h": { vi: "1 giờ", explain: "Khung 1 giờ" },
-  "4h": { vi: "4 giờ", explain: "Khung 4 giờ" },
-  "15m": { vi: "15 phút", explain: "Khung 15 phút" },
+  "Timeframe": "Khung thời gian của biểu đồ. 15m = 15 phút, 1h = 1 giờ, 4h = 4 giờ.",
   
   // Xu hướng
-  "Up-trend": { vi: "Xu hướng tăng", explain: "Giá đang có xu hướng đi lên" },
-  "Down-trend": { vi: "Xu hướng giảm", explain: "Giá đang có xu hướng đi xuống" },
-  "Sideway": { vi: "Đi ngang", explain: "Giá dao động trong biên độ hẹp" },
+  "Uptrend": "Xu hướng tăng - Giá đang tạo đỉnh cao hơn và đáy cao hơn.",
+  "Downtrend": "Xu hướng giảm - Giá đang tạo đỉnh thấp hơn và đáy thấp hơn.",
+  "Sideway": "Đi ngang - Giá dao động trong biên độ hẹp, không có xu hướng rõ ràng.",
   
   // Loại entry
-  "Breakout": { vi: "Phá vỡ", explain: "Vào lệnh khi giá phá vỡ ngưỡng" },
-  "Pullback": { vi: "Hồi về", explain: "Vào lệnh khi giá hồi về vùng hỗ trợ/kháng cự" },
-  "Reversal": { vi: "Đảo chiều", explain: "Vào lệnh khi có dấu hiệu đảo chiều" },
+  "Breakout": "Phá vỡ - Vào lệnh khi giá phá vỡ ngưỡng kháng cự/hỗ trợ.",
+  "Pullback": "Hồi về - Vào lệnh khi giá hồi về vùng hỗ trợ/kháng cự sau khi breakout.",
+  "Limit": "Lệnh giới hạn - Đặt lệnh chờ ở mức giá mong muốn.",
+  
+  // Scenario
+  "Scenario": "Kịch bản giao dịch. A, B = tốt nhất, C, D = trung bình, F, G = rủi ro cao.",
 };
 
-// Helper function để lấy thuật ngữ tiếng Việt
-export const getVietnameseTerm = (term: string): string => {
-  const entry = VIETNAMESE_TERMS[term];
-  return entry ? entry.vi : term;
-};
-
-// Helper function để lấy giải thích
+// Helper function để lấy giải thích thuật ngữ
 export const getTermExplanation = (term: string): string => {
-  const entry = VIETNAMESE_TERMS[term];
-  return entry ? `${entry.vi} (${entry.explain})` : term;
+  return TRADING_TERMS[term] || term;
 };
