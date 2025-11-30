@@ -351,6 +351,79 @@ export const getActiveSignals = (
 };
 
 // ═══════════════════════════════════════════════════════════
+// Hàm lấy reports theo timeframe (cho chat AI)
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Lấy danh sách tất cả reports với thông tin cơ bản (cho so sánh timeframe)
+ * Dùng khi user hỏi về các mốc thời gian trước
+ */
+export const getAllReportsForComparison = async (): Promise<NormalizedReport[]> => {
+  try {
+    const reportList = await fetchReportList();
+    
+    if (reportList.length === 0) {
+      return [];
+    }
+
+    // Sắp xếp theo created_at giảm dần
+    const sortedReports = reportList.sort((a, b) => {
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      return dateB - dateA;
+    });
+
+    // Lấy chi tiết cho tối đa 5 reports gần nhất (để không quá tải)
+    const MAX_REPORTS = 5;
+    const reportsToFetch = sortedReports.slice(0, MAX_REPORTS);
+    
+    const normalizedReports: NormalizedReport[] = [];
+    
+    for (const item of reportsToFetch) {
+      try {
+        const detail = await fetchReportDetail(item._id);
+        if (detail.markdown) {
+          normalizedReports.push(normalizeReport(detail, item));
+        }
+      } catch (error) {
+        logWarn("Không thể lấy chi tiết report.", { reportId: item._id });
+      }
+    }
+
+    logInfo("Đã lấy reports cho comparison.", { 
+      totalFetched: normalizedReports.length,
+      totalAvailable: reportList.length 
+    });
+
+    return normalizedReports;
+  } catch (error) {
+    logError("Lỗi khi lấy reports cho comparison.", { error: (error as Error).message });
+    return [];
+  }
+};
+
+/**
+ * Kiểm tra xem câu hỏi có cần so sánh timeframe không
+ * Trả về true nếu user hỏi về lịch sử, so sánh, các mốc thời gian trước
+ */
+export const needsTimeframeComparison = (question: string): boolean => {
+  const comparisonKeywords = [
+    "so sánh", "compare", 
+    "trước đó", "trước", "before", "previous",
+    "lịch sử", "history", "historical",
+    "các mốc", "các khung", "timeframe",
+    "1h trước", "4h trước", "hôm qua", "yesterday",
+    "thay đổi", "change", "biến động",
+    "xu hướng", "trend",
+    "tất cả report", "all reports",
+    "các report", "danh sách report"
+  ];
+  
+  const lowerQuestion = question.toLowerCase();
+  return comparisonKeywords.some(keyword => lowerQuestion.includes(keyword));
+};
+
+// ═══════════════════════════════════════════════════════════
 // Legacy functions (backward compatible)
 // ═══════════════════════════════════════════════════════════
 

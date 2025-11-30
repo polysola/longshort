@@ -2,25 +2,34 @@ import { promises as fs } from "fs";
 import path from "path";
 import { getEnv } from "./config/env";
 import type { EnvConfig } from "./config/env";
-import { getLatestReport, fetchReportsFromApi } from "./services/reportApiService";
+import { getLatestReport, getAllReportsForComparison, needsTimeframeComparison } from "./services/reportApiService";
 import { analyzeReport } from "./services/geminiService";
 import { sendTelegramMessage, sendTelegramChatMessage, getTelegramUpdates } from "./services/telegramService";
 import { answerQuestion, formatBotReply } from "./services/chatbotService";
 import { formatTelegramMessage } from "./utils/telegramFormatter";
 import type { NormalizedReport } from "./types/mail";
-import { logError, logInfo, logWarn } from "./utils/logger";
-// import { autoCommitAndPushLogs } from "./utils/gitHelper"; // Đã tắt
+import { logError, logInfo, logWarn, logDebug } from "./utils/logger";
 import { AppError } from "./lib/errors";
 
 const OUTPUT_PATH = path.join(process.cwd(), "logs", "latest-reports.json");
-const API_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 phút - Check API
+const API_CHECK_INTERVAL_MS = 30 * 1000; // 30 giây - Check API
 const TELEGRAM_CHECK_INTERVAL_MS = 2 * 1000; // 2 giây - Check Telegram (realtime)
 
-// Biến lưu trạng thái ID report mới nhất đã xử lý
+// ═══════════════════════════════════════════════════════════
+// MEMORY - Lưu ID report đã xử lý
+// ═══════════════════════════════════════════════════════════
 let lastProcessedReportId: string | null = null;
 let lastTelegramUpdateId: number = 0; // Offset cho Telegram updates
 let lastApiCheckTime: number = 0; // Timestamp lần check API cuối cùng
 
+// Cache report mới nhất cho chat (tránh gọi API liên tục)
+let cachedLatestReport: NormalizedReport | null = null;
+let cacheTimestamp: number = 0;
+const CACHE_TTL_MS = 60 * 1000; // Cache 1 phút
+
+// ═══════════════════════════════════════════════════════════
+// PROCESS REPORT - Xử lý và gửi Telegram khi có report mới
+// ═══════════════════════════════════════════════════════════
 const processReport = async (
   env: EnvConfig,
   report: NormalizedReport,
@@ -80,6 +89,7 @@ const saveReportsToFile = async (reports: NormalizedReport[]) => {
         {
           generatedAt: new Date().toISOString(),
           total: reports.length,
+          lastProcessedId: lastProcessedReportId,
           reports: reports.map((r) => ({
             id: r.id,
             subject: r.subject,
@@ -94,31 +104,49 @@ const saveReportsToFile = async (reports: NormalizedReport[]) => {
       "utf8",
     );
 
-    logInfo("Đã lưu log report vào file JSON.", { file: OUTPUT_PATH });
+    logDebug("Đã lưu log report vào file JSON.", { file: OUTPUT_PATH });
     
   } catch (error) {
     logError("Không thể ghi file JSON.", { error: (error as Error).message });
   }
 };
 
-// Lấy report mới nhất trực tiếp từ API
-const getLatestReportFromApi = async (): Promise<NormalizedReport | null> => {
+// ═══════════════════════════════════════════════════════════
+// GET REPORT - Lấy report với caching
+// ═══════════════════════════════════════════════════════════
+const getLatestReportWithCache = async (): Promise<NormalizedReport | null> => {
+  const now = Date.now();
+  
+  // Nếu cache còn hạn, dùng cache
+  if (cachedLatestReport && (now - cacheTimestamp) < CACHE_TTL_MS) {
+    logDebug("Sử dụng cached report.", { reportId: cachedLatestReport.id });
+    return cachedLatestReport;
+  }
+  
+  // Nếu không, fetch mới
   try {
     const latestReport = await getLatestReport();
+    if (latestReport) {
+      cachedLatestReport = latestReport;
+      cacheTimestamp = now;
+    }
     return latestReport;
   } catch (error) {
     logError("Không thể lấy report mới nhất từ API.", { error: (error as Error).message });
-    return null;
+    return cachedLatestReport; // Trả về cache cũ nếu có
   }
 };
 
+// ═══════════════════════════════════════════════════════════
+// CHECK NEW REPORTS - Polling API và gửi Telegram khi có ID mới
+// ═══════════════════════════════════════════════════════════
 const checkNewReports = async (env: EnvConfig) => {
-  logInfo("Đang kiểm tra API reports...");
+  logDebug("Đang kiểm tra API reports...");
 
-  const latestReport = await getLatestReportFromApi();
+  const latestReport = await getLatestReportWithCache();
 
   if (!latestReport) {
-    logInfo("Không tìm thấy report nào từ API.");
+    logDebug("Không tìm thấy report nào từ API.");
     return;
   }
 
@@ -126,43 +154,57 @@ const checkNewReports = async (env: EnvConfig) => {
   const reportDate = new Date(latestReport.rawDate);
   const diffMinutes = Math.floor((Date.now() - reportDate.getTime()) / (1000 * 60));
 
-  logInfo("Report mới nhất tìm thấy:", {
-    id: latestReport.id,
-    createdAt: latestReport.date,
-    ageMinutes: diffMinutes,
-    symbols: latestReport.symbols.length,
-  });
-
   // Kiểm tra trùng lặp: Nếu ID report này trùng với report đã xử lý lần trước -> Bỏ qua
   if (latestReport.id === lastProcessedReportId) {
-    logInfo("Không có report mới. (ID report mới nhất trùng với ID đã xử lý)", { id: latestReport.id });
+    logDebug("Không có report mới.", { id: latestReport.id, ageMinutes: diffMinutes });
     return;
   }
 
-  // Kiểm tra tuổi của report (chỉ xử lý report mới trong 30 phút)
-  if (diffMinutes > 30) {
-    logInfo(`Report mới nhất quá cũ (${diffMinutes} phút). Bỏ qua.`);
-    // Vẫn cập nhật ID để không check lại
-    lastProcessedReportId = latestReport.id;
+  // Nếu là lần chạy đầu tiên (lastProcessedReportId = null)
+  if (lastProcessedReportId === null) {
+    logInfo("Lần chạy đầu tiên, lưu ID report mới nhất vào memory.", { 
+      id: latestReport.id,
+      createdAt: latestReport.date
+    });
+    
+    // Kiểm tra tuổi của report
+    if (diffMinutes <= 5) {
+      // Report mới (trong 5 phút) -> Xử lý và gửi
+      logInfo("Report mới trong 5 phút, xử lý và gửi Telegram.");
+      const processed = await processReport(env, latestReport);
+      if (processed) {
+        lastProcessedReportId = processed.id;
+        await saveReportsToFile([processed]);
+      }
+    } else {
+      // Report cũ -> Chỉ lưu ID, không gửi
+      logInfo(`Report đã cũ (${diffMinutes} phút), chỉ lưu ID.`);
+      lastProcessedReportId = latestReport.id;
+    }
     return;
   }
 
-  // Nếu khác ID -> Có report mới -> Xử lý
-  logInfo("Phát hiện report mới (hoặc chạy lần đầu).", { 
+  // Nếu khác ID -> Có report MỚI -> Xử lý và gửi Telegram
+  logInfo("🆕 PHÁT HIỆN REPORT MỚI!", { 
     newId: latestReport.id, 
-    oldId: lastProcessedReportId 
+    oldId: lastProcessedReportId,
+    createdAt: latestReport.date,
+    ageMinutes: diffMinutes
   });
 
   const processed = await processReport(env, latestReport);
 
   if (processed) {
-    // Cập nhật ID đã xử lý
+    // Cập nhật ID đã xử lý vào memory
     lastProcessedReportId = processed.id;
     await saveReportsToFile([processed]);
+    logInfo("✅ Đã cập nhật ID mới vào memory.", { id: lastProcessedReportId });
   }
 };
 
-// Xử lý tin nhắn từ Telegram (Chatbot)
+// ═══════════════════════════════════════════════════════════
+// HANDLE TELEGRAM MESSAGES - Chatbot với hỗ trợ timeframe comparison
+// ═══════════════════════════════════════════════════════════
 const handleTelegramMessages = async (env: EnvConfig) => {
   try {
     const updates = await getTelegramUpdates(env, lastTelegramUpdateId);
@@ -192,11 +234,11 @@ const handleTelegramMessages = async (env: EnvConfig) => {
       logInfo("Nhận câu hỏi từ người dùng:", { question: userMessage });
 
       try {
-        // Gửi tin nhắn "đang xử lý" ngay lập tức với format đẹp (Markdown)
+        // Gửi tin nhắn "đang xử lý" ngay lập tức
         const processingMsg = `🔄 *ĐANG XỬ LÝ...*
 
-📥 Đang lấy report mới nhất từ API
-🤖 Đang phân tích dữ liệu với AI
+📥 Đang lấy dữ liệu từ API
+🤖 Đang phân tích với AI
 ⏱️ Vui lòng đợi trong giây lát...`;
         await sendTelegramChatMessage(env, processingMsg);
       } catch (sendError) {
@@ -205,10 +247,28 @@ const handleTelegramMessages = async (env: EnvConfig) => {
         });
       }
 
-      // Lấy report mới nhất trực tiếp từ API
-      const latestReport = await getLatestReportFromApi();
+      // Kiểm tra xem user có hỏi về timeframe comparison không
+      const needsComparison = needsTimeframeComparison(userMessage);
+      
+      let dataForAI: NormalizedReport | NormalizedReport[] | null = null;
+      let reportDate = "";
 
-      if (!latestReport) {
+      if (needsComparison) {
+        // User hỏi về so sánh, lịch sử -> Lấy nhiều reports
+        logInfo("User hỏi về timeframe comparison, lấy nhiều reports...");
+        const reports = await getAllReportsForComparison();
+        
+        if (reports.length > 0) {
+          dataForAI = reports;
+          reportDate = `${reports.length} reports (${reports[0]?.date} - ${reports[reports.length - 1]?.date})`;
+        }
+      } else {
+        // Câu hỏi bình thường -> Lấy report mới nhất (theo ID)
+        dataForAI = await getLatestReportWithCache();
+        reportDate = (dataForAI as NormalizedReport)?.date || "";
+      }
+
+      if (!dataForAI || (Array.isArray(dataForAI) && dataForAI.length === 0)) {
         try {
           const errorMsg = `❌ *KHÔNG TÌM THẤY DỮ LIỆU*
 
@@ -222,11 +282,9 @@ Vui lòng thử lại sau hoặc kiểm tra nguồn dữ liệu.`;
       }
 
       try {
-        // Trả lời dựa trên report mới nhất (AI đã format Markdown)
-        const answer = await answerQuestion(env, userMessage, latestReport);
-
-        // Format report date
-        const reportDate = latestReport.date;
+        // Trả lời dựa trên data (có thể là 1 report hoặc nhiều reports)
+        const reportForAI = Array.isArray(dataForAI) ? dataForAI[0] || null : dataForAI;
+        const answer = await answerQuestion(env, userMessage, reportForAI);
 
         // Gửi trả lời với format đẹp (Markdown)
         const formattedReply = formatBotReply(answer, reportDate);
@@ -267,21 +325,25 @@ Vui lòng thử lại sau.`;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// ═══════════════════════════════════════════════════════════
+// MAIN - Entry point
+// ═══════════════════════════════════════════════════════════
 const main = async () => {
   try {
     const env = getEnv();
 
-    logInfo(`Bắt đầu ứng dụng.`);
-    logInfo(`📊 API: Check mỗi ${API_CHECK_INTERVAL_MS / 60000} phút`);
+    logInfo(`🚀 Bắt đầu ứng dụng.`);
+    logInfo(`📊 API Polling: Mỗi ${API_CHECK_INTERVAL_MS / 1000} giây`);
     logInfo(`💬 Telegram: Check realtime (mỗi ${TELEGRAM_CHECK_INTERVAL_MS / 1000} giây)`);
-    logInfo("Bot Telegram đã sẵn sàng trả lời câu hỏi!");
+    logInfo("🤖 Bot Telegram đã sẵn sàng trả lời câu hỏi!");
     logInfo("🔗 Data source: https://first.fsignal.xyz/api/reports");
+    logInfo("📝 Memory: Lưu ID report, chỉ gửi khi có ID mới");
 
     // Chạy vòng lặp vô tận
     while (true) {
       const now = Date.now();
       
-      // Kiểm tra API chỉ khi đã qua 1 phút kể từ lần check cuối
+      // Kiểm tra API mỗi 30 giây
       if (now - lastApiCheckTime >= API_CHECK_INTERVAL_MS) {
         await checkNewReports(env);
         lastApiCheckTime = now;
@@ -290,7 +352,7 @@ const main = async () => {
       // Lắng nghe tin nhắn Telegram (chạy mỗi vòng lặp = realtime)
       await handleTelegramMessages(env);
       
-      // Đợi 2 giây trước khi lặp lại (Telegram check mỗi 2s)
+      // Đợi 2 giây trước khi lặp lại
       await sleep(TELEGRAM_CHECK_INTERVAL_MS);
     }
 
