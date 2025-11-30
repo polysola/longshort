@@ -255,12 +255,17 @@ const handleTelegramMessages = async (env: EnvConfig) => {
 
       if (needsComparison) {
         // User hỏi về so sánh, lịch sử -> Lấy nhiều reports
-        logInfo("User hỏi về timeframe comparison, lấy nhiều reports...");
+        logInfo("🔄 User hỏi về timeframe comparison, đang lấy nhiều reports...");
         const reports = await getAllReportsForComparison();
         
+        logInfo("Đã lấy reports cho comparison.", { 
+          count: reports.length,
+          reportIds: reports.map(r => r.id)
+        });
+        
         if (reports.length > 0) {
-          dataForAI = reports;
-          reportDate = `${reports.length} reports (${reports[0]?.date} - ${reports[reports.length - 1]?.date})`;
+          dataForAI = reports; // Truyền TOÀN BỘ reports cho AI
+          reportDate = `${reports.length} reports (${reports[0]?.date} → ${reports[reports.length - 1]?.date})`;
         }
       } else {
         // Câu hỏi bình thường -> Lấy report mới nhất (theo ID)
@@ -282,9 +287,8 @@ Vui lòng thử lại sau hoặc kiểm tra nguồn dữ liệu.`;
       }
 
       try {
-        // Trả lời dựa trên data (có thể là 1 report hoặc nhiều reports)
-        const reportForAI = Array.isArray(dataForAI) ? dataForAI[0] || null : dataForAI;
-        const answer = await answerQuestion(env, userMessage, reportForAI);
+        // Trả lời dựa trên data - TRUYỀN TOÀN BỘ (1 hoặc nhiều reports)
+        const answer = await answerQuestion(env, userMessage, dataForAI);
 
         // Gửi trả lời với format đẹp (Markdown)
         const formattedReply = formatBotReply(answer, reportDate);
