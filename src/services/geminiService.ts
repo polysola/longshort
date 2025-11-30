@@ -3,7 +3,7 @@ import { EnvConfig } from "../config/env";
 import { ActionItem, AnalysisResult, NormalizedMail, NormalizedReport, TradingSignal } from "../types/mail";
 import { ExternalServiceError, ProcessingError } from "../lib/errors";
 import { logDebug } from "../utils/logger";
-import { ENTRY_SCORE_RULES } from "../config/scoringRules";
+import { ENTRY_SCORE_RULES, convertEdgeScoreTo100 } from "../config/scoringRules";
 
 // Legacy: Build prompt từ NormalizedMail
 const buildPrompt = (mail: NormalizedMail): string => {
@@ -88,25 +88,74 @@ const sanitizeSignals = (items?: TradingSignal[]): TradingSignal[] => {
   if (!Array.isArray(items)) return [];
   return items
     .filter((item) => item && typeof item.symbol === "string")
-    .map((item): TradingSignal => ({
-      symbol: item.symbol.trim().toUpperCase(),
-      direction: ["LONG", "SHORT", "STAY_OUT", "NEUTRAL"].includes(item.direction) ? item.direction : "NEUTRAL",
-      entry: item.entry ? String(item.entry).trim() : undefined,
-      stopLoss: item.stopLoss ? String(item.stopLoss).trim() : undefined,
-      takeProfits: Array.isArray(item.takeProfits) ? item.takeProfits.map(tp => String(tp)) : [],
-      reason: item.reason ? item.reason.trim() : undefined,
-      timeframe: item.timeframe ? item.timeframe.trim() : undefined,
-      entryScore: typeof item.entryScore === 'number' && item.entryScore >= 0 && item.entryScore <= 100 
-        ? Math.round(item.entryScore) 
-        : undefined,
-      // Thông tin chi tiết
-      price: item.price ? String(item.price).trim() : undefined,
-      trigger: item.trigger ? String(item.trigger).trim() : undefined,
-      entryType: item.entryType ? item.entryType.trim() : undefined,
-      scenario: item.scenario ? item.scenario.trim() : undefined,
-      edgeScore: typeof item.edgeScore === 'number' ? item.edgeScore : undefined,
-      rr: item.rr ? item.rr.trim() : undefined,
-    }));
+    .map((item): TradingSignal => {
+      // Lấy EdgeScore gốc (thang 7)
+      const edgeScore7 = typeof item.edgeScore === 'number' ? item.edgeScore : 0;
+      
+      // Chuyển EdgeScore sang thang 100
+      const edgeScore100 = convertEdgeScoreTo100(edgeScore7);
+      
+      // Tính EntryScore dựa trên EdgeScore100 và các yếu tố khác
+      let entryScore = item.entryScore;
+      if (typeof entryScore !== 'number' || entryScore < 0 || entryScore > 100) {
+        // Tự tính nếu không có hoặc không hợp lệ
+        entryScore = calculateEntryScore(edgeScore100, item.rr, item.direction);
+      }
+      
+      return {
+        symbol: item.symbol.trim().toUpperCase(),
+        direction: ["LONG", "SHORT", "STAY_OUT", "NEUTRAL"].includes(item.direction) ? item.direction : "NEUTRAL",
+        entry: item.entry ? String(item.entry).trim() : undefined,
+        stopLoss: item.stopLoss ? String(item.stopLoss).trim() : undefined,
+        takeProfits: Array.isArray(item.takeProfits) ? item.takeProfits.map(tp => String(tp)) : [],
+        reason: item.reason ? item.reason.trim() : undefined,
+        timeframe: item.timeframe ? item.timeframe.trim() : undefined,
+        entryScore: Math.round(entryScore),
+        // Thông tin chi tiết
+        price: item.price ? String(item.price).trim() : undefined,
+        trigger: item.trigger ? String(item.trigger).trim() : undefined,
+        entryType: item.entryType ? item.entryType.trim() : undefined,
+        scenario: item.scenario ? item.scenario.trim() : undefined,
+        edgeScore: edgeScore7, // Giữ nguyên thang 7 để hiển thị gốc
+        rr: item.rr ? item.rr.trim() : undefined,
+      };
+    });
+};
+
+// Tính EntryScore (thang 100) từ các yếu tố
+const calculateEntryScore = (edgeScore100: number, rr?: string, direction?: string): number => {
+  let score = 0;
+  
+  // 1. EdgeScore đóng góp 40%
+  score += edgeScore100 * 0.4;
+  
+  // 2. R:R đóng góp 30%
+  if (rr) {
+    const rrValues = rr.split('/').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+    const maxRR = Math.max(...rrValues, 0);
+    
+    if (maxRR >= 4.0) score += 30;
+    else if (maxRR >= 3.0) score += 27;
+    else if (maxRR >= 2.5) score += 24;
+    else if (maxRR >= 2.0) score += 20;
+    else if (maxRR >= 1.5) score += 15;
+    else if (maxRR >= 1.0) score += 10;
+    else score += 5;
+  } else {
+    score += 10; // Mặc định nếu không có RR
+  }
+  
+  // 3. Hướng đi đóng góp 15%
+  if (direction === "LONG" || direction === "SHORT") {
+    score += 15; // Có hướng rõ ràng
+  } else if (direction === "STAY_OUT") {
+    score = Math.min(score, 20); // STAY_OUT tối đa 20 điểm
+  }
+  
+  // 4. Điều kiện thị trường đóng góp 15% (mặc định 10 vì không có data)
+  score += 10;
+  
+  return Math.min(100, Math.max(0, Math.round(score)));
 };
 
 const SYSTEM_INSTRUCTION = `Bạn là chuyên gia phân tích tín hiệu Crypto chuyên nghiệp.

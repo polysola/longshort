@@ -3,10 +3,10 @@ import { EnvConfig } from "../config/env";
 import { NormalizedMail, NormalizedReport } from "../types/mail";
 import { ExternalServiceError } from "../lib/errors";
 import { logDebug, logInfo } from "../utils/logger";
-import { ENTRY_SCORE_RULES } from "../config/scoringRules";
+import { ENTRY_SCORE_RULES, VIETNAMESE_TERMS } from "../config/scoringRules";
 
 // ════════════════════════════════════════════
-// CONVERSATION HISTORY - Lưu 5 câu hỏi/trả lời gần nhất
+// CONVERSATION HISTORY
 // ════════════════════════════════════════════
 type ConversationItem = {
   question: string;
@@ -18,50 +18,31 @@ type ConversationItem = {
 const MAX_HISTORY = 5;
 let conversationHistory: ConversationItem[] = [];
 
-// Thêm câu hỏi/trả lời vào lịch sử
 const addToHistory = (question: string, answer: string, reportDate?: string): void => {
-  const item: ConversationItem = {
+  conversationHistory.unshift({
     question,
     answer,
     timestamp: new Date(),
-  };
-  
-  if (reportDate) {
-    item.reportDate = reportDate;
-  }
-  
-  conversationHistory.unshift(item);
+    ...(reportDate && { reportDate })
+  });
   
   if (conversationHistory.length > MAX_HISTORY) {
     conversationHistory = conversationHistory.slice(0, MAX_HISTORY);
   }
   
-  logInfo("Đã lưu câu hỏi/trả lời vào lịch sử.", { 
-    totalHistory: conversationHistory.length,
+  logInfo("Đã lưu vào lịch sử hội thoại.", { 
+    total: conversationHistory.length,
     question: question.substring(0, 50) + "..."
   });
 };
 
-// Chuyển đổi lịch sử thành conversation history cho Gemini
 const buildConversationHistory = () => {
-  const history: Array<{ role: string; parts: Array<{ text: string }> }> = [];
-  const sortedHistory = [...conversationHistory].reverse();
-  
-  sortedHistory.forEach((item) => {
-    history.push({
-      role: "user",
-      parts: [{ text: item.question }]
-    });
-    history.push({
-      role: "model",
-      parts: [{ text: item.answer }]
-    });
-  });
-  
-  return history;
+  return [...conversationHistory].reverse().flatMap((item) => [
+    { role: "user", parts: [{ text: item.question }] },
+    { role: "model", parts: [{ text: item.answer }] }
+  ]);
 };
 
-// Export helper để debug conversation history
 export const getConversationHistoryDebug = () => {
   return conversationHistory.map((item, index) => ({
     index: index + 1,
@@ -72,98 +53,110 @@ export const getConversationHistoryDebug = () => {
   }));
 };
 
-// Reset conversation history
 export const resetConversationHistory = () => {
   const oldLength = conversationHistory.length;
   conversationHistory = [];
-  logInfo("Đã reset conversation history.", { oldLength });
+  logInfo("Đã reset lịch sử hội thoại.", { oldLength });
 };
 
 // ════════════════════════════════════════════
-// BUILD CONTEXT DATA - Tạo context từ 1 hoặc nhiều reports
+// BUILD CONTEXT DATA
 // ════════════════════════════════════════════
 const buildContextData = (
   data: NormalizedReport | NormalizedReport[] | NormalizedMail | null
 ): string => {
   if (!data) {
-    return "KHÔNG CÓ DỮ LIỆU NÀO.";
+    return "KHÔNG CÓ DỮ LIỆU BÁO CÁO.";
   }
 
-  // Nếu là array (nhiều reports cho comparison)
+  // Nhiều reports (cho so sánh)
   if (Array.isArray(data)) {
     if (data.length === 0) {
-      return "KHÔNG CÓ DỮ LIỆU NÀO.";
+      return "KHÔNG CÓ DỮ LIỆU BÁO CÁO.";
     }
 
-    logInfo("Building context từ nhiều reports.", { count: data.length });
+    logInfo("Đang xây dựng context từ nhiều báo cáo.", { count: data.length });
 
     let context = `
 ════════════════════════════════════════════
-📊 DỮ LIỆU NHIỀU REPORTS (${data.length} reports) - CHO SO SÁNH TIMEFRAME
+📊 DỮ LIỆU ${data.length} BÁO CÁO - SO SÁNH KHUNG THỜI GIAN
 ════════════════════════════════════════════
-
 `;
 
     data.forEach((report, index) => {
       context += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 REPORT ${index + 1}/${data.length}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• *Report ID:* \`${report.id}\`
-• *Ngày:* ${report.date}
-• *Loại:* ${report.reportType}
-• *Symbols (${report.symbols.length}):* ${report.symbols.join(", ")}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 BÁO CÁO ${index + 1}/${data.length}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• ID: ${report.id}
+• Thời gian: ${report.date}
+• Loại: ${report.reportType}
+• Coins (${report.symbols.length}): ${report.symbols.join(", ")}
 
-=== NỘI DUNG MARKDOWN ===
+=== NỘI DUNG ===
 ${report.sectionsMarkdown.join("\n\n---\n\n")}
-
 `;
     });
 
     context += `
 ════════════════════════════════════════════
-LƯU Ý KHI SO SÁNH:
-• So sánh giá Entry, SL, TP giữa các reports
-• Xem xu hướng thay đổi của tín hiệu (LONG → SHORT hoặc ngược lại)
-• Chú ý thời gian của từng report để biết độ mới
+HƯỚNG DẪN SO SÁNH:
+• So sánh giá Vào lệnh, Cắt lỗ, Chốt lời giữa các báo cáo
+• Xem xu hướng: MUA → BÁN hoặc ngược lại
+• Chú ý thời gian để biết độ mới
 ════════════════════════════════════════════
 `;
 
     return context;
   }
 
-  // Nếu là NormalizedReport (1 report)
+  // Một report
   if ('sectionsMarkdown' in data) {
     const report = data as NormalizedReport;
     return `
-DỮ LIỆU REPORT MỚI NHẤT TỪ API:
+DỮ LIỆU BÁO CÁO MỚI NHẤT:
 ━━━━━━━━━━━━━━━━━━━━━━
-• *Report ID:* \`${report.id}\`
-• *Tiêu đề:* ${report.subject}
-• *Từ:* ${report.from}
-• *Ngày:* ${report.date}
-• *Loại report:* ${report.reportType}
-• *Symbols (${report.symbols.length}):* ${report.symbols.join(", ")}
+• ID: ${report.id}
+• Tiêu đề: ${report.subject}
+• Nguồn: ${report.from}
+• Thời gian: ${report.date}
+• Loại: ${report.reportType}
+• Coins (${report.symbols.length}): ${report.symbols.join(", ")}
 
-=== NỘI DUNG CHI TIẾT (MARKDOWN) ===
+=== NỘI DUNG CHI TIẾT ===
 ${report.sectionsMarkdown.join("\n\n---\n\n")}
 `;
   }
 
-  // Legacy: NormalizedMail
+  // Legacy: Email
   const mail = data as NormalizedMail;
   return `
-DỮ LIỆU EMAIL MỚI NHẤT:
-• *Tiêu đề:* ${mail.subject}
-• *Từ:* ${mail.from}
-• *Ngày:* ${mail.date}
-• *Nội dung chính:* 
+DỮ LIỆU EMAIL:
+• Tiêu đề: ${mail.subject}
+• Từ: ${mail.from}
+• Ngày: ${mail.date}
+• Nội dung: 
 ${mail.htmlText || mail.plainText || mail.snippet}
 `;
 };
 
 // ════════════════════════════════════════════
-// ANSWER QUESTION - Hỗ trợ 1 hoặc nhiều reports
+// GENERATE VIETNAMESE TERMS GUIDE
+// ════════════════════════════════════════════
+const generateTermsGuide = (): string => {
+  const terms = Object.entries(VIETNAMESE_TERMS)
+    .map(([en, { vi, explain }]) => `• ${en} = ${vi} (${explain})`)
+    .join("\n");
+  
+  return `
+BẢNG THUẬT NGỮ TIẾNG VIỆT:
+━━━━━━━━━━━━━━━━━━━━━━
+${terms}
+`;
+};
+
+// ════════════════════════════════════════════
+// ANSWER QUESTION
 // ════════════════════════════════════════════
 export const answerQuestion = async (
   config: EnvConfig,
@@ -178,144 +171,136 @@ export const answerQuestion = async (
   try {
     const conversationHistoryArray = buildConversationHistory();
     const contextData = buildContextData(data);
-    
-    // Log để debug
     const isMultipleReports = Array.isArray(data);
+    const termsGuide = generateTermsGuide();
+    
     logInfo("Đang xử lý câu hỏi.", {
       isMultipleReports,
-      reportCount: isMultipleReports ? data.length : 1,
-      contextLength: contextData.length
+      reportCount: isMultipleReports ? data.length : (data ? 1 : 0),
+      contextLength: contextData.length,
+      hasData: !!data
     });
 
-    const systemPrompt = `Bạn là trợ lý phân tích tín hiệu Crypto chuyên nghiệp, có khả năng giải thích thuật ngữ một cách dễ hiểu.
+    const systemPrompt = `Bạn là trợ lý phân tích tín hiệu Crypto chuyên nghiệp, LUÔN trả lời bằng TIẾNG VIỆT.
 
-NGUYÊN TẮC QUAN TRỌNG NHẤT:
-━━━━━━━━━━━━━━━━━━━━━━
-1. ⚠️ TUYỆT ĐỐI KHÔNG BỊA/ĐOÁN/GIẢ ĐỊNH dữ liệu không có trong report
-2. ⚠️ CHỈ TRẢ LỜI DỰA TRÊN DỮ LIỆU REPORT CÓ SẴN bên dưới
-3. ⚠️ Nếu report KHÔNG chứa thông tin cần thiết → Nói rõ: "❌ Report không có thông tin về [vấn đề X]"
-4. ⚠️ KHÔNG sử dụng kiến thức chung về crypto để thêm thông tin không có trong report
+═══════════════════════════════════════════════════════════
+NGUYÊN TẮC BẮT BUỘC:
+═══════════════════════════════════════════════════════════
+1. ⚠️ TUYỆT ĐỐI KHÔNG BỊA dữ liệu không có trong báo cáo
+2. ⚠️ CHỈ trả lời dựa trên DỮ LIỆU BÁO CÁO bên dưới
+3. ⚠️ Nếu không có thông tin → Nói rõ: "❌ Báo cáo không có thông tin về [vấn đề]"
+4. ⚠️ LUÔN dùng thuật ngữ TIẾNG VIỆT (xem bảng bên dưới)
+
+${termsGuide}
+
+═══════════════════════════════════════════════════════════
+CÁCH TRẢ LỜI:
+═══════════════════════════════════════════════════════════
+
+A. KHI NGƯỜI DÙNG HỎI VỀ THUẬT NGỮ:
+   Giải thích chi tiết, dễ hiểu, có ví dụ cụ thể.
+   
+   Ví dụ: "R:R là gì?"
+   → "📚 *R:R (Lợi nhuận/Rủi ro)*
+   
+   Đây là tỷ lệ giữa số tiền có thể lời và số tiền có thể mất.
+   
+   _Ví dụ:_ R:R = 3.0 nghĩa là:
+   • Nếu đúng: Lời 3 phần
+   • Nếu sai: Mất 1 phần
+   
+   R:R càng cao càng tốt. Thường nên ≥ 2.0"
+
+B. KHI NGƯỜI DÙNG HỎI VỀ COIN CỤ THỂ:
+   Trích xuất CHÍNH XÁC từ báo cáo, format đẹp.
+   
+   Ví dụ format:
+   ━━━━━━━━━━━━━━━━━━━━━━
+   🔴 *BTCUSDT* - BÁN
+   ━━━━━━━━━━━━━━━━━━━━━━
+   
+   📊 *Điểm tín hiệu:* \`85\`/100 ⭐⭐⭐
+   🎯 *Điểm vào lệnh:* \`78\`/100 ⭐⭐
+   
+   📥 *Điểm vào:* \`91,484\` USDT
+   🛑 *Cắt lỗ:* \`93,200\` USDT
+   🎯 *Chốt lời:*
+      • Mức 1: \`89,500\`
+      • Mức 2: \`87,200\`
+      • Mức 3: \`84,000\`
+   
+   📈 *Lợi nhuận/Rủi ro:* 2.5
+   ⏱ *Khung giờ:* 4h
+   
+   💡 _Xu hướng giảm mạnh, ADX > 25_
+   ━━━━━━━━━━━━━━━━━━━━━━
+
+C. HỆ THỐNG CHẤM ĐIỂM (THANG 100):
+${ENTRY_SCORE_RULES}
 
 ${isMultipleReports ? `
-CHỨC NĂNG SO SÁNH TIMEFRAME:
-━━━━━━━━━━━━━━━━━━━━━━
-• Bạn đang nhận được ${(data as NormalizedReport[]).length} reports để SO SÁNH
-• Hãy phân tích sự THAY ĐỔI giữa các mốc thời gian
-• So sánh: Entry, SL, TP, Direction (LONG/SHORT), Edge Score
-• Nêu rõ xu hướng: Tăng/Giảm, Đổi chiều, Giữ nguyên
-• Format bảng so sánh nếu cần
+D. KHI SO SÁNH NHIỀU BÁO CÁO:
+   • So sánh thay đổi giữa các mốc thời gian
+   • Nêu rõ xu hướng: Tăng/Giảm/Đổi chiều
+   • Dùng bảng so sánh nếu cần
+   
+   Ví dụ:
+   ━━━━━━━━━━━━━━━━━━━━━━
+   📊 *SO SÁNH BTCUSDT*
+   ━━━━━━━━━━━━━━━━━━━━━━
+   
+   📅 *Báo cáo 1* (19:50)
+      • Hướng: 🔴 BÁN
+      • Vào: \`91,484\`
+      • Điểm: 85/100
+   
+   📅 *Báo cáo 2* (18:50)
+      • Hướng: 🔴 BÁN  
+      • Vào: \`92,100\`
+      • Điểm: 78/100
+   
+   📈 *XU HƯỚNG:*
+      ╰─ Giữ nguyên BÁN
+      ╰─ Giá vào giảm 616 USDT
+      ╰─ Điểm tăng từ 78 → 85
+   ━━━━━━━━━━━━━━━━━━━━━━
 ` : ''}
 
-NGUYÊN TẮC VỀ NGỮ CẢNH HỘI THOẠI:
-━━━━━━━━━━━━━━━━━━━━━━
-• Bạn đang trong một cuộc hội thoại liên tục với người dùng
-• Nếu câu hỏi liên quan đến câu trả lời trước → Hiểu ngữ cảnh
-• LUÔN ưu tiên dữ liệu report mới nhất
-
-CÁC NHIỆM VỤ:
-━━━━━━━━━━━━━━━━━━━━━━
-A. TRÍCH XUẤT DỮ LIỆU:
-   • Đọc kỹ report và trích xuất CHÍNH XÁC thông tin được hỏi
-   • Trích dẫn GIÁ TRỊ CỤ THỂ từ report (số, giá, phần trăm)
-   • KHÔNG làm tròn, thay đổi hoặc ước lượng số liệu
-
-B. GIẢI THÍCH THUẬT NGỮ:
-   • Khi trả lời có thuật ngữ chuyên ngành → LUÔN giải thích
-   • Format: *Thuật ngữ* (Giải thích ngắn gọn)
-
-C. FORMAT TRẢ LỜI (TELEGRAM MARKDOWN):
-   • Dùng separator ━━━━━━━━━━
-   • Icon: 📊💰🎯🛑⚡📈📉🟢🔴⚠️✅❌🔥⭐💡📥
-   • *Bold* cho keywords (1 dấu sao)
-   • _italic_ cho ghi chú
-   • \`code\` cho số liệu
-
+═══════════════════════════════════════════════════════════
+DỮ LIỆU BÁO CÁO:
+═══════════════════════════════════════════════════════════
 ${contextData}
 
-QUY TRÌNH TRẢ LỜI:
-━━━━━━━━━━━━━━━━━━━━━━
-Bước 1: Kiểm tra report có chứa thông tin được hỏi không?
-Bước 2: Trích xuất CHÍNH XÁC dữ liệu từ report
-Bước 3: Tính điểm gợi ý vào lệnh (0-100):
-${ENTRY_SCORE_RULES}
-Bước 4: Format câu trả lời đẹp
-Bước 5: Kiểm tra không bịa thông tin
+═══════════════════════════════════════════════════════════
+FORMAT TELEGRAM MARKDOWN:
+═══════════════════════════════════════════════════════════
+• *in đậm* (1 dấu sao)
+• _in nghiêng_ (dấu gạch dưới)
+• \`code\` (backtick) cho số liệu
+• ━━━ cho đường kẻ
+• Emoji: 📊💰🎯🛑📥📈📉🟢🔴⚠️✅❌🔥⭐💡
 
-${isMultipleReports ? `
-VÍ DỤ SO SÁNH TIMEFRAME:
-━━━━━━━━━━━━━━━━━━━━━━
-Câu hỏi: "So sánh BTC các mốc thời gian"
+HÃY TRẢ LỜI BẰNG TIẾNG VIỆT!`;
 
-✅ TRẢ LỜI TỐT:
-
-━━━━━━━━━━━━━━━━━━━━━━
-📊 *SO SÁNH BTCUSDT QUA CÁC MỐC*
-━━━━━━━━━━━━━━━━━━━━━━
-
-📅 *Report 1* (19:50 30/11)
-   • Direction: 🔴 SHORT
-   • Entry: \`91,484\`
-   • Edge Score: 5/7
-
-📅 *Report 2* (18:50 30/11)  
-   • Direction: 🔴 SHORT
-   • Entry: \`92,100\`
-   • Edge Score: 4/7
-
-📈 *XU HƯỚNG:*
-   ╰─ Giữ nguyên SHORT
-   ╰─ Entry giảm 616 USDT (-0.67%)
-   ╰─ Edge Score tăng từ 4 → 5
-
-━━━━━━━━━━━━━━━━━━━━━━
-` : `
-VÍ DỤ TRẢ LỜI:
-━━━━━━━━━━━━━━━━━━━━━━
-━━━━━━━━━━━━━━━━━━━━━━
-🔴 *BTCUSDT* - TÍN HIỆU SHORT
-━━━━━━━━━━━━━━━━━━━━━━
-
-📥 *Entry* (Điểm vào lệnh)
-   \`83,224.63 USDT\`
-
-🛑 *Stop Loss* (Cắt lỗ)
-   \`84,573.09 USDT\`
-
-🎯 *Take Profit* (Chốt lời)
-   • TP1: \`81,471.63\`
-   • TP2: \`79,853.47\`
-   • TP3: \`77,830.78\`
-
-📊 *Entry Score: 85/100* 🔥🔥 _RẤT TỐT_
-
-━━━━━━━━━━━━━━━━━━━━━━
-`}
-
-HÃY BẮT ĐẦU TRẢ LỜI!`;
-
-    const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [
+    const contents = [
       { role: "user", parts: [{ text: systemPrompt }] },
-      { role: "model", parts: [{ text: "Đã hiểu! Tôi sẽ trả lời DỰA TRÊN DỮ LIỆU REPORT, KHÔNG BỊA, format Markdown đẹp. Hãy hỏi tôi!" }] },
+      { role: "model", parts: [{ text: "Đã hiểu! Tôi sẽ trả lời bằng tiếng Việt, dựa trên dữ liệu báo cáo, không bịa thông tin. Hãy hỏi tôi!" }] },
       ...conversationHistoryArray,
       { role: "user", parts: [{ text: question }] }
     ];
 
-    logInfo("Đang gửi request đến Gemini.", {
+    logInfo("Gửi request đến Gemini.", {
       historyLength: conversationHistoryArray.length,
-      totalMessages: contents.length,
-      isComparison: isMultipleReports
+      totalMessages: contents.length
     });
 
-    const result = await model.generateContent({
-      contents: contents,
-    });
-
+    const result = await model.generateContent({ contents });
     const answer = result.response.text() || "❌ Xin lỗi, tôi không thể trả lời câu hỏi này.";
     
     // Lưu vào history
     let dataDate: string | undefined;
     if (Array.isArray(data) && data.length > 0) {
-      dataDate = `${data.length} reports`;
+      dataDate = `${data.length} báo cáo`;
     } else if (data && 'date' in data) {
       dataDate = data.date;
     }
@@ -324,14 +309,16 @@ HÃY BẮT ĐẦU TRẢ LỜI!`;
     return answer;
 
   } catch (error) {
-    logDebug("Lỗi khi trả lời câu hỏi với Gemini.", { error: (error as Error).message });
-    throw new ExternalServiceError("Gemini không thể trả lời câu hỏi.", {
+    logDebug("Lỗi khi trả lời với Gemini.", { error: (error as Error).message });
+    throw new ExternalServiceError("Không thể trả lời câu hỏi.", {
       cause: (error as Error).message,
     });
   }
 };
 
-// Format tin nhắn trả lời chuyên nghiệp (Telegram Markdown)
+// ════════════════════════════════════════════
+// FORMAT BOT REPLY
+// ════════════════════════════════════════════
 export const formatBotReply = (answer: string, reportDate?: string): string => {
   const timestamp = new Date().toLocaleString('vi-VN', { 
     timeZone: 'Asia/Ho_Chi_Minh',
@@ -342,7 +329,7 @@ export const formatBotReply = (answer: string, reportDate?: string): string => {
   });
 
   const header = `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃  🤖 *AI CRYPTO ADVISOR*     ┃
+┃  🤖 *TRỢ LÝ CRYPTO*          ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
 `;
@@ -353,10 +340,10 @@ export const formatBotReply = (answer: string, reportDate?: string): string => {
 │ ⏰ *Trả lời:* ${timestamp}`;
   if (reportDate) {
     footer += `
-│ 📊 *Data:* ${reportDate}`;
+│ 📊 *Dữ liệu:* ${reportDate}`;
   }
   footer += `
-│ 💡 *Tip:* Luôn DYOR và quản lý rủi ro
+│ 💡 *Lưu ý:* Tự nghiên cứu trước khi giao dịch
 ╰───────────────────────────╯`;
 
   return header + answer + footer;
