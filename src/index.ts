@@ -191,39 +191,77 @@ const handleTelegramMessages = async (env: EnvConfig) => {
 
       logInfo("Nhận câu hỏi từ người dùng:", { question: userMessage });
 
-      // Gửi tin nhắn "đang xử lý" ngay lập tức với format đẹp (Markdown)
-      const processingMsg = `🔄 *ĐANG XỬ LÝ...*
+      try {
+        // Gửi tin nhắn "đang xử lý" ngay lập tức với format đẹp (Markdown)
+        const processingMsg = `🔄 *ĐANG XỬ LÝ...*
 
 📥 Đang lấy report mới nhất từ API
 🤖 Đang phân tích dữ liệu với AI
 ⏱️ Vui lòng đợi trong giây lát...`;
-      await sendTelegramChatMessage(env, processingMsg);
+        await sendTelegramChatMessage(env, processingMsg);
+      } catch (sendError) {
+        logWarn("Không gửi được tin nhắn 'đang xử lý'. Tiếp tục...", { 
+          error: (sendError as Error).message 
+        });
+      }
 
       // Lấy report mới nhất trực tiếp từ API
       const latestReport = await getLatestReportFromApi();
 
       if (!latestReport) {
-        const errorMsg = `❌ *KHÔNG TÌM THẤY DỮ LIỆU*
+        try {
+          const errorMsg = `❌ *KHÔNG TÌM THẤY DỮ LIỆU*
 
 Không có report nào từ API.
 Vui lòng thử lại sau hoặc kiểm tra nguồn dữ liệu.`;
-        await sendTelegramChatMessage(env, errorMsg);
+          await sendTelegramChatMessage(env, errorMsg);
+        } catch (sendError) {
+          logError("Không gửi được tin nhắn lỗi.", { error: (sendError as Error).message });
+        }
         continue;
       }
 
-      // Trả lời dựa trên report mới nhất (AI đã format Markdown)
-      const answer = await answerQuestion(env, userMessage, latestReport);
+      try {
+        // Trả lời dựa trên report mới nhất (AI đã format Markdown)
+        const answer = await answerQuestion(env, userMessage, latestReport);
 
-      // Format report date
-      const reportDate = latestReport.date;
+        // Format report date
+        const reportDate = latestReport.date;
 
-      // Gửi trả lời với format đẹp (Markdown)
-      const formattedReply = formatBotReply(answer, reportDate);
-      await sendTelegramChatMessage(env, formattedReply);
+        // Gửi trả lời với format đẹp (Markdown)
+        const formattedReply = formatBotReply(answer, reportDate);
+        await sendTelegramChatMessage(env, formattedReply);
+        
+      } catch (answerError) {
+        logError("Lỗi khi trả lời câu hỏi.", { 
+          error: (answerError as Error).message,
+          question: userMessage
+        });
+        
+        // Gửi thông báo lỗi cho user
+        try {
+          const errorMsg = `❌ *LỖI XỬ LÝ*
 
+Không thể xử lý câu hỏi của bạn.
+Lỗi: ${(answerError as Error).message}
+
+Vui lòng thử lại sau.`;
+          await sendTelegramChatMessage(env, errorMsg);
+        } catch (sendError) {
+          logError("Không gửi được tin nhắn lỗi cho user.", { 
+            error: (sendError as Error).message 
+          });
+        }
+      }
     }
   } catch (error) {
-    logError("Lỗi khi xử lý tin nhắn Telegram.", { error: (error as Error).message });
+    // Log chi tiết hơn
+    const appError = error as AppError;
+    logError("Lỗi khi xử lý tin nhắn Telegram.", { 
+      error: appError.message,
+      context: appError.context,
+      stack: appError.stack?.substring(0, 500)
+    });
   }
 };
 
