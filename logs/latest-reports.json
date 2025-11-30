@@ -1,0 +1,33 @@
+{
+  "generatedAt": "2025-11-30T12:55:01.255Z",
+  "total": 1,
+  "reports": [
+    {
+      "id": "692c3d7edc7db16348605e9a",
+      "subject": "(ALT COIN)AI Trading Report",
+      "date": "19:50:06 30/11/2025",
+      "symbols": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "TONUSDT",
+        "ASTERUSDT",
+        "BATUSDT",
+        "ZECUSDT",
+        "SAHARAUSDT",
+        "GIGGLEUSDT",
+        "DOGEUSDT",
+        "ATUSDT",
+        "ENAUSDT",
+        "SUIUSDT",
+        "TRXUSDT",
+        "BCHUSDT",
+        "AVAXUSDT",
+        "ADAUSDT",
+        "LSKUSDT",
+        "TIAUSDT",
+        "UNIUSDT"
+      ],
+      "reportType": "daily_report"
+    }
+  ]
+}

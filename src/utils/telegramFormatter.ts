@@ -1,95 +1,293 @@
+/**
+ * Telegram Message Formatter
+ * Sử dụng HTML format (parse_mode: HTML) - dễ dùng hơn MarkdownV2
+ * 
+ * Supported HTML tags:
+ * - <b>bold</b>
+ * - <i>italic</i>
+ * - <u>underline</u>
+ * - <s>strikethrough</s>
+ * - <code>monospace</code>
+ * - <pre>preformatted</pre>
+ * - <a href="URL">link</a>
+ */
+
 import { AnalysisResult, TradingSignal } from "../types/mail";
 
-const escapeText = (text: string): string => text.replace(/\s+/g, " ").trim();
+// ═══════════════════════════════════════════════════════════
+// Helper functions
+// ═══════════════════════════════════════════════════════════
 
-const getSignalIcon = (direction: string) => {
+/**
+ * Escape HTML entities
+ */
+const escapeHtml = (text: string): string => {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+};
+
+const getDirectionEmoji = (direction: string): string => {
   switch (direction) {
-    case "LONG":
-      return "🟢 LONG";
-    case "SHORT":
-      return "🔴 SHORT";
-    case "STAY_OUT":
-      return "⚠️ STAY OUT";
-    default:
-      return "⚪ NEUTRAL";
+    case "LONG": return "🟢";
+    case "SHORT": return "🔴";
+    case "STAY_OUT": return "⚠️";
+    default: return "⚪";
   }
 };
 
-const getScoreDisplay = (score?: number): string => {
-  if (!score) return "";
-  
-  let icon = "";
-  let label = "";
-  
-  if (score >= 90) {
-    icon = "🔥🔥🔥";
-    label = "CỰC TỐT";
-  } else if (score >= 75) {
-    icon = "⭐⭐";
-    label = "TỐT";
-  } else if (score >= 60) {
-    icon = "⭐";
-    label = "KHÁ";
-  } else if (score >= 40) {
-    icon = "⚠️";
-    label = "TRUNG BÌNH";
-  } else {
-    icon = "❌";
-    label = "YẾU";
-  }
-  
-  return `\n   ╰─ 📊 *GỢI Ý VÀO LỆNH: ${score}/100* ${icon} _${label}_`;
+const getScoreEmoji = (score: number): string => {
+  if (score >= 5) return "🔥🔥🔥";
+  if (score >= 4) return "🔥🔥";
+  if (score >= 3) return "🔥";
+  if (score >= 2) return "⭐";
+  if (score >= 1) return "✨";
+  return "💤";
 };
 
-const formatSignal = (signal: TradingSignal): string => {
-  const parts = [
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `🔹 *${escapeText(signal.symbol)}* ${signal.timeframe ? `⏱ ${escapeText(signal.timeframe)}` : ""}`,
-    `   ${getSignalIcon(signal.direction)}`,
-  ];
+const getScoreLabel = (score: number): string => {
+  if (score >= 5) return "CỰC MẠNH";
+  if (score >= 4) return "RẤT TỐT";
+  if (score >= 3) return "TỐT";
+  if (score >= 2) return "KHÁ";
+  if (score >= 1) return "TRUNG BÌNH";
+  return "YẾU";
+};
 
-  if (signal.direction === "LONG" || signal.direction === "SHORT") {
-    if (signal.entry) parts.push(`   📥 *Entry:* \`${escapeText(signal.entry)}\``);
-    if (signal.stopLoss) parts.push(`   🛑 *Stop Loss:* \`${escapeText(signal.stopLoss)}\``);
-    if (signal.takeProfits && signal.takeProfits.length > 0) {
-      parts.push(`   🎯 *Take Profit:*`);
-      signal.takeProfits.forEach((tp, index) => {
-        parts.push(`      • TP${index + 1}: \`${escapeText(tp)}\``);
-      });
-    }
-    
-    // Thêm score ngay dưới TP
-    if (signal.entryScore) {
-      parts.push(getScoreDisplay(signal.entryScore));
+const getEntryScoreEmoji = (score: number): string => {
+  if (score >= 85) return "🔥🔥🔥";
+  if (score >= 70) return "⭐⭐";
+  if (score >= 55) return "⭐";
+  if (score >= 40) return "⚠️";
+  return "❌";
+};
+
+const formatPrice = (price: string | number | undefined): string => {
+  if (!price) return "-";
+  const num = typeof price === "string" ? parseFloat(price) : price;
+  if (isNaN(num)) return String(price);
+  
+  // Format theo độ lớn của số
+  if (num >= 1000) return num.toFixed(1);
+  if (num >= 1) return num.toFixed(4);
+  return num.toFixed(6);
+};
+
+// ═══════════════════════════════════════════════════════════
+// Signal Formatter
+// ═══════════════════════════════════════════════════════════
+
+const formatSignalDetailed = (signal: TradingSignal, index: number): string => {
+  const emoji = getDirectionEmoji(signal.direction);
+  const lines: string[] = [];
+  
+  // Header
+  lines.push(``);
+  lines.push(`${emoji} <b>${index + 1}. ${escapeHtml(signal.symbol)}</b> [${signal.timeframe || "-"}] <b>${signal.direction}</b>`);
+  lines.push(`━━━━━━━━━━━━━━━━━━━━━━`);
+  
+  // EdgeScore & Entry Score
+  const edgeScore = signal.edgeScore ?? 0;
+  const entryScore = signal.entryScore ?? 0;
+  lines.push(`📊 <b>EdgeScore:</b> ${edgeScore}/7 ${getScoreEmoji(edgeScore)} <i>${getScoreLabel(edgeScore)}</i>`);
+  if (entryScore > 0) {
+    lines.push(`🎯 <b>EntryScore:</b> ${entryScore}/100 ${getEntryScoreEmoji(entryScore)}`);
+  }
+  
+  // Scenario & EntryType
+  if (signal.scenario || signal.entryType) {
+    const scenario = signal.scenario ? `Scenario ${escapeHtml(signal.scenario)}` : "";
+    const entryType = signal.entryType ? `(${escapeHtml(signal.entryType)})` : "";
+    lines.push(`📋 <b>Setup:</b> ${scenario} ${entryType}`);
+  }
+  
+  // Price & Entry
+  lines.push(``);
+  lines.push(`💰 <b>Giá hiện tại:</b> <code>${formatPrice(signal.price)}</code>`);
+  if (signal.trigger && signal.trigger !== "-") {
+    lines.push(`📥 <b>Trigger:</b> <code>${formatPrice(signal.trigger)}</code>`);
+  } else if (signal.entry) {
+    lines.push(`📥 <b>Entry:</b> <code>${formatPrice(signal.entry)}</code>`);
+  }
+  
+  // SL & TP
+  if (signal.stopLoss) {
+    lines.push(`🛑 <b>Stop Loss:</b> <code>${formatPrice(signal.stopLoss)}</code>`);
+  }
+  
+  if (signal.takeProfits && signal.takeProfits.length > 0) {
+    const tps = signal.takeProfits
+      .filter(tp => tp && tp !== "-")
+      .map((tp, i) => `TP${i + 1}: <code>${formatPrice(tp)}</code>`)
+      .join(" | ");
+    if (tps) {
+      lines.push(`🎯 <b>Take Profit:</b> ${tps}`);
     }
   }
-
+  
+  // RR
+  if (signal.rr && signal.rr !== "-") {
+    lines.push(`📈 <b>R:R:</b> ${escapeHtml(signal.rr)}`);
+  }
+  
+  // Reason/Notes
   if (signal.reason) {
-    parts.push(`   💡 *Lý do:* _${escapeText(signal.reason)}_`);
+    lines.push(`💡 <i>${escapeHtml(signal.reason)}</i>`);
   }
-
-  return parts.join("\n");
+  
+  return lines.join("\n");
 };
+
+// ═══════════════════════════════════════════════════════════
+// Main Formatter
+// ═══════════════════════════════════════════════════════════
 
 export const formatTelegramMessage = (analysis: AnalysisResult): string => {
-  const header = [
-    "📬 *Báo Cáo Tín Hiệu Mới*",
-    `🗣 *Từ:* ${escapeText(analysis.sender)}`,
-    `📝 *Chủ đề:* ${escapeText(analysis.subject)}`,
-    "",
-    `📌 *Tổng quan:* ${escapeText(analysis.summary)}`,
-  ];
+  // Phân loại signals
+  const longSignals = analysis.signals?.filter(s => s.direction === "LONG") || [];
+  const shortSignals = analysis.signals?.filter(s => s.direction === "SHORT") || [];
+  const totalSignals = longSignals.length + shortSignals.length;
+  
+  // Sắp xếp theo EdgeScore giảm dần
+  const sortByEdgeScore = (a: TradingSignal, b: TradingSignal) => 
+    (b.edgeScore ?? 0) - (a.edgeScore ?? 0);
+  longSignals.sort(sortByEdgeScore);
+  shortSignals.sort(sortByEdgeScore);
 
-  const signalDetails =
-    analysis.signals && analysis.signals.length > 0
-      ? analysis.signals.map(formatSignal).join("\n")
-      : "\n(Không tìm thấy tín hiệu cụ thể trong email này)";
+  const lines: string[] = [];
+  
+  // ═══════════════════════════════════════════════════════════
+  // HEADER
+  // ═══════════════════════════════════════════════════════════
+  lines.push(`📊 <b>BÁO CÁO TÍN HIỆU GIAO DỊCH</b>`);
+  lines.push(`══════════════════════════════`);
+  lines.push(``);
+  lines.push(`📝 <b>${escapeHtml(analysis.subject)}</b>`);
+  lines.push(`🗣 Nguồn: ${escapeHtml(analysis.sender)}`);
+  lines.push(``);
+  
+  // ═══════════════════════════════════════════════════════════
+  // SUMMARY
+  // ═══════════════════════════════════════════════════════════
+  lines.push(`📌 <b>TỔNG QUAN THỊ TRƯỜNG</b>`);
+  lines.push(`─────────────────────────────`);
+  lines.push(`<i>${escapeHtml(analysis.summary)}</i>`);
+  lines.push(``);
+  
+  // ═══════════════════════════════════════════════════════════
+  // STATISTICS
+  // ═══════════════════════════════════════════════════════════
+  lines.push(`📈 <b>THỐNG KÊ</b>`);
+  lines.push(`─────────────────────────────`);
+  lines.push(`• Tổng tín hiệu: <b>${totalSignals}</b>`);
+  lines.push(`• 🟢 LONG: <b>${longSignals.length}</b> | 🔴 SHORT: <b>${shortSignals.length}</b>`);
+  
+  // Top signals by EdgeScore
+  if (totalSignals > 0) {
+    const allSignals = [...longSignals, ...shortSignals].sort(sortByEdgeScore);
+    const topSignals = allSignals.slice(0, 3);
+    if (topSignals.length > 0) {
+      const topList = topSignals
+        .map(s => `${getDirectionEmoji(s.direction)}${s.symbol}(${s.edgeScore ?? 0})`)
+        .join(" ");
+      lines.push(`• Top EdgeScore: ${topList}`);
+    }
+  }
+  lines.push(``);
+  
+  // ═══════════════════════════════════════════════════════════
+  // LONG SIGNALS
+  // ═══════════════════════════════════════════════════════════
+  if (longSignals.length > 0) {
+    lines.push(`🟢 <b>DANH SÁCH LONG (${longSignals.length})</b>`);
+    lines.push(`══════════════════════════════`);
+    longSignals.forEach((signal, index) => {
+      lines.push(formatSignalDetailed(signal, index));
+    });
+    lines.push(``);
+  }
+  
+  // ═══════════════════════════════════════════════════════════
+  // SHORT SIGNALS
+  // ═══════════════════════════════════════════════════════════
+  if (shortSignals.length > 0) {
+    lines.push(`🔴 <b>DANH SÁCH SHORT (${shortSignals.length})</b>`);
+    lines.push(`══════════════════════════════`);
+    shortSignals.forEach((signal, index) => {
+      lines.push(formatSignalDetailed(signal, index));
+    });
+    lines.push(``);
+  }
+  
+  // No signals
+  if (totalSignals === 0) {
+    lines.push(`⚠️ <b>KHÔNG CÓ TÍN HIỆU</b>`);
+    lines.push(`─────────────────────────────`);
+    lines.push(`<i>Không tìm thấy tín hiệu LONG/SHORT trong report này.</i>`);
+    lines.push(`<i>Thị trường có thể đang sideway hoặc chưa có setup tốt.</i>`);
+    lines.push(``);
+  }
+  
+  // ═══════════════════════════════════════════════════════════
+  // FOOTER
+  // ═══════════════════════════════════════════════════════════
+  lines.push(`══════════════════════════════`);
+  lines.push(`🔖 Report ID: <code>${analysis.mailId}</code>`);
+  lines.push(`🤖 Confidence: ${(analysis.confidence * 100).toFixed(0)}%`);
+  lines.push(``);
+  lines.push(`<i>⚠️ Đây chỉ là tín hiệu tham khảo. DYOR!</i>`);
+  
+  return lines.join("\n");
+};
 
-  const footer = [
-    "",
-    `🔖 ID: \`${analysis.mailId}\``,
-    `🤖 Confidence: ${(analysis.confidence * 100).toFixed(0)}%`,
-  ];
+/**
+ * Format tin nhắn ngắn gọn cho notification
+ */
+export const formatShortNotification = (analysis: AnalysisResult): string => {
+  const longSignals = analysis.signals?.filter(s => s.direction === "LONG") || [];
+  const shortSignals = analysis.signals?.filter(s => s.direction === "SHORT") || [];
+  const total = longSignals.length + shortSignals.length;
+  
+  if (total === 0) {
+    return `📊 <b>Report mới</b>\n<i>${escapeHtml(analysis.subject)}</i>\n⚠️ Không có tín hiệu LONG/SHORT`;
+  }
+  
+  // Lấy top 3 signals theo EdgeScore
+  const allSignals = [...longSignals, ...shortSignals]
+    .sort((a, b) => (b.edgeScore ?? 0) - (a.edgeScore ?? 0))
+    .slice(0, 3);
+  
+  const topList = allSignals
+    .map(s => `${getDirectionEmoji(s.direction)}${s.symbol}`)
+    .join(" ");
+  
+  return `📊 <b>Report mới - ${total} tín hiệu</b>\n🟢 ${longSignals.length} LONG | 🔴 ${shortSignals.length} SHORT\n📈 Top: ${topList}`;
+};
 
-  return [...header, signalDetails, ...footer].join("\n");
+/**
+ * Format tin nhắn compact cho mỗi signal (dùng khi chia nhỏ tin nhắn)
+ */
+export const formatSignalCompact = (signal: TradingSignal): string => {
+  const emoji = getDirectionEmoji(signal.direction);
+  const edgeScore = signal.edgeScore ?? 0;
+  
+  const lines: string[] = [];
+  lines.push(`${emoji} <b>${signal.symbol}</b> [${signal.timeframe || "-"}]`);
+  lines.push(`   📊 Edge: ${edgeScore}/7 ${getScoreEmoji(edgeScore)}`);
+  
+  if (signal.entry || signal.trigger) {
+    lines.push(`   📥 Entry: <code>${formatPrice(signal.trigger || signal.entry)}</code>`);
+  }
+  if (signal.stopLoss) {
+    lines.push(`   🛑 SL: <code>${formatPrice(signal.stopLoss)}</code>`);
+  }
+  if (signal.takeProfits && signal.takeProfits.length > 0) {
+    const tp1 = signal.takeProfits[0];
+    if (tp1 && tp1 !== "-") {
+      lines.push(`   🎯 TP1: <code>${formatPrice(tp1)}</code>`);
+    }
+  }
+  
+  return lines.join("\n");
 };

@@ -1,0 +1,69 @@
+{
+  "messages": [
+    {
+      "id": "1763991747142",
+      "role": "user",
+      "content": "HELLO",
+      "timestamp": "2025-11-24T13:42:27.142Z"
+    },
+    {
+      "id": "1763991749711",
+      "role": "assistant",
+      "content": "Xin chào! Tôi là trợ lý phân tích tín hiệu Crypto chuyên nghiệp.\n\nTôi có thể giúp bạn phân tích các tín hiệu giao dịch từ email, giải thích các thuật ngữ chuyên ngành và cung cấp thông tin chi tiết về các đồng coin được đề cập.\n\nBạn muốn tìm hiểu về tín hiệu của đồng coin nào hoặc có câu hỏi cụ thể nào không?",
+      "timestamp": "2025-11-24T13:42:29.710Z",
+      "mailDate": "Fri, 21 Nov 2025 08:41:33 -0500 (EST)"
+    },
+    {
+      "id": "1763991755898",
+      "role": "user",
+      "content": "BTC",
+      "timestamp": "2025-11-24T13:42:35.898Z"
+    },
+    {
+      "id": "1763991767867",
+      "role": "assistant",
+      "content": "━━━━━━━━━━━━━━━━━━━━━━\n🔥 **BTCUSDT** - TÍN HIỆU SHORT\n━━━━━━━━━━━━━━━━━━━━━━\n\n📊 **Gợi ý vào lệnh: 100/100** 🔥🔥🔥 _CỰC TỐT_\n\n**Phân tích chi tiết:**\n*   **Edge Score** (Điểm mạnh tín hiệu): `7` (cao nhất, cho thấy tín hiệu rất mạnh)\n*   **R:R (Risk:Reward)** (Tỷ lệ rủi ro/lợi nhuận): `1.3 / 2.5 / 4.0` (cho thấy tiềm năng lợi nhuận cao so với rủi ro)\n*   **Timeframe** (Khung thời gian): `1h` (stop-breakout) và `4h`\n*   **Trend / Momentum** (Xu hướng / Động lượng): `Down-trend strong` (xu hướng giảm mạnh)\n*   **Volatility** (Mức độ biến động): `high` (cao)\n*   **Classification** (Phân loại xu hướng): `decrease` (giảm)\n*   **Quyết định**: **SHORT** (Bán xuống - Đặt cược giá sẽ giảm)\n*   **Lý do chọn**: Edge cao, **ADX** (Average Directional Index - Chỉ báo sức mạnh xu hướng) mạnh, **CMF** (Chaikin Money Flow - Chỉ báo dòng tiền) âm, khối lượng tăng, thị trường `Fear` (**Fear-Greed Index** - Chỉ số Sợ hãi & Tham lam = `11`, mức độ sợ hãi cực đoan, thường đi kèm với xu hướng giảm mạnh).\n\n**Các thông số giao dịch cụ thể (khung 1h):**\n📥 **Entry** (Điểm vào lệnh - Giá mua/bán để bắt đầu giao dịch): `83,224.63 USDT`\n🛑 **Stop Loss (SL)** (Điểm cắt lỗ - Giá tự động đóng lệnh để giới hạn thua lỗ): `84,573.09 USDT`\n🎯 **Take Profit (TP)** (Chốt lời - Mức giá đóng lệnh để thu lợi nhuận):\n    • **TP1**: `81,471.63 USDT`\n    • **TP2**: `79,853.47 USDT`\n    • **TP3**: `77,830.78 USDT`\n\n**Ghi chú:**\n*   Giá hiện tại `83,494 USDT`, **Entry** cách `0.2 × ATR₁ₕ` (Average True Range - chỉ số đo lường biến động giá) = `83,224 USDT` → đủ \"pull-back\" (sự điều chỉnh ngược chiều xu hướng chính) ngắn hạn.\n*   **Support** (Mức hỗ trợ - Mức giá mà tại đó áp lực mua có thể ngăn giá giảm thêm) gần nhất: `pivot S1 = 84,104.82 USDT`\n*   **Resistance** (Mức kháng cự - Mức giá mà tại đó áp lực bán có thể ngăn giá tăng thêm) gần nhất: `pivot R1 = 91,164.82 USDT`\n\n**Lưu ý quan trọng:**\n*   Email khuyến nghị mở lệnh **SHORT** ngay trên khung `1h` với mức **entry**, **SL**, **TP** đã nêu.\n*   Nếu muốn giao dịch trên khung `4h`, các mức **entry** hiện tại quá xa so với giá, không được khuyến nghị.\n*   Luôn tuân thủ quản lý rủi ro: `risk ≤ 1%` tài khoản, `leverage` chỉ dùng để đạt **size** (khối lượng lệnh) và **SL** được đặt `≤ 0.6 × ATR` (theo quy tắc \"anti-FOMO\").\n*   Khi giá chạm **TP1**, di chuyển **SL** về mức **breakeven** (hòa vốn).\n*   Khi lợi nhuận `≥ 1.5 R`, kích hoạt **trailing-stop** (Lệnh dừng động - Tự động điều chỉnh SL theo giá thị trường để bảo vệ lợi nhuận).\n\n━━━━━━━━━━━━━━━━━━━━━━",
+      "timestamp": "2025-11-24T13:42:47.866Z",
+      "mailDate": "Fri, 21 Nov 2025 08:41:33 -0500 (EST)"
+    },
+    {
+      "id": "1763993662649",
+      "role": "user",
+      "content": "btc",
+      "timestamp": "2025-11-24T14:14:22.649Z"
+    },
+    {
+      "id": "1763993668974",
+      "role": "assistant",
+      "content": "❌ Xin lỗi, đã có lỗi khi kết nối với AI. Vui lòng thử lại sau.\n\nLỗi: addToHistory is not defined",
+      "timestamp": "2025-11-24T14:14:28.973Z",
+      "mailDate": "2025-11-24T14:09:45.725Z"
+    },
+    {
+      "id": "1763993788325",
+      "role": "user",
+      "content": "Hello",
+      "timestamp": "2025-11-24T14:16:28.325Z"
+    },
+    {
+      "id": "1763993790011",
+      "role": "assistant",
+      "content": "Xin chào! Tôi ở đây để giúp bạn phân tích tín hiệu Crypto.\n\nBạn muốn tôi cung cấp thông tin về tín hiệu của đồng coin nào? Hoặc bạn có câu hỏi cụ thể nào về báo cáo tín hiệu không?",
+      "timestamp": "2025-11-24T14:16:30.010Z",
+      "mailDate": "2025-11-24T14:09:45.725Z"
+    },
+    {
+      "id": "1763995114509",
+      "role": "user",
+      "content": "hello",
+      "timestamp": "2025-11-24T14:38:34.509Z"
+    },
+    {
+      "id": "1763995117223",
+      "role": "assistant",
+      "content": "Xin chào lần nữa!\n\nBạn đã sẵn sàng để bắt đầu phân tích tín hiệu chưa? Hãy cho tôi biết đồng coin bạn quan tâm, hoặc bất kỳ câu hỏi nào bạn có về báo cáo. Tôi sẽ sử dụng dữ liệu báo cáo mới nhất để trả lời bạn.",
+      "timestamp": "2025-11-24T14:38:37.222Z",
+      "mailDate": "2025-11-24T14:09:45.725Z"
+    }
+  ]
+}

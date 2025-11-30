@@ -1,66 +1,52 @@
-import type { gmail_v1 } from "googleapis";
 import { promises as fs } from "fs";
 import path from "path";
 import { getEnv } from "./config/env";
 import type { EnvConfig } from "./config/env";
-import { createGmailClient, fetchMessages, normalizeMessage, markMessageAsRead } from "./services/gmailService";
-import { analyzeMail } from "./services/geminiService";
-import { sendTelegramMessage, getTelegramUpdates } from "./services/telegramService";
+import { getLatestReport, fetchReportsFromApi } from "./services/reportApiService";
+import { analyzeReport } from "./services/geminiService";
+import { sendTelegramMessage, sendTelegramChatMessage, getTelegramUpdates } from "./services/telegramService";
 import { answerQuestion, formatBotReply } from "./services/chatbotService";
 import { formatTelegramMessage } from "./utils/telegramFormatter";
-import type { NormalizedMail } from "./types/mail";
+import type { NormalizedReport } from "./types/mail";
 import { logError, logInfo, logWarn } from "./utils/logger";
-import { autoCommitAndPushLogs } from "./utils/gitHelper";
+// import { autoCommitAndPushLogs } from "./utils/gitHelper"; // Đã tắt
 import { AppError } from "./lib/errors";
 
-const OUTPUT_PATH = path.join(process.cwd(), "logs", "latest-mails.json");
-const GMAIL_CHECK_INTERVAL_MS = 1 * 60 * 1000; // 1 phút - Check Gmail
+const OUTPUT_PATH = path.join(process.cwd(), "logs", "latest-reports.json");
+const API_CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 phút - Check API
 const TELEGRAM_CHECK_INTERVAL_MS = 2 * 1000; // 2 giây - Check Telegram (realtime)
 
-// Biến lưu trạng thái ID tin nhắn mới nhất đã xử lý
-let lastProcessedMsgId: string | null = null;
+// Biến lưu trạng thái ID report mới nhất đã xử lý
+let lastProcessedReportId: string | null = null;
 let lastTelegramUpdateId: number = 0; // Offset cho Telegram updates
-let lastGmailCheckTime: number = 0; // Timestamp lần check Gmail cuối cùng
+let lastApiCheckTime: number = 0; // Timestamp lần check API cuối cùng
 
-const processMessage = async (
+const processReport = async (
   env: EnvConfig,
-  gmailClient: gmail_v1.Gmail,
-  message: gmail_v1.Schema$Message,
-): Promise<NormalizedMail | null> => {
-  if (!message.id || !message.internalDate) {
-    logWarn("Bỏ qua thư vì thiếu ID hoặc date.");
+  report: NormalizedReport,
+): Promise<NormalizedReport | null> => {
+  if (!report.id) {
+    logWarn("Bỏ qua report vì thiếu ID.");
     return null;
   }
 
   try {
-    const mailTimestamp = parseInt(message.internalDate);
-    const mailDate = new Date(mailTimestamp);
+    const reportDate = new Date(report.rawDate);
     const now = new Date();
-    const diffMinutes = Math.floor((now.getTime() - mailTimestamp) / (1000 * 60));
+    const diffMinutes = Math.floor((now.getTime() - reportDate.getTime()) / (1000 * 60));
 
-    logInfo("Bắt đầu xử lý thư.", { 
-      messageId: message.id,
-      receivedAt: mailDate.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
-      ageMinutes: diffMinutes
+    logInfo("Bắt đầu xử lý report.", { 
+      reportId: report.id,
+      createdAt: report.date,
+      ageMinutes: diffMinutes,
+      symbolCount: report.symbols.length,
     });
-
-    const normalized = normalizeMessage(message);
 
     // 1. Phân tích với Gemini
-    const analysis = await analyzeMail(env, normalized);
+    const analysis = await analyzeReport(env, report);
 
     // 2. Format tin nhắn Telegram với thời gian chi tiết
-    const mailTimeString = mailDate.toLocaleString('vi-VN', { 
-      timeZone: 'Asia/Ho_Chi_Minh',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    });
-    
-    const separator = `\n━━━━━━━━━━━━━━━━━━━━━━\n📧 *Mail nhận lúc:* ${mailTimeString}\n⏰ *Xử lý lúc:* ${now.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}\n━━━━━━━━━━━━━━━━━━━━━━\n`;
+    const separator = `\n━━━━━━━━━━━━━━━━━━━━━━\n📊 *Report từ API:* ${report.date}\n⏰ *Xử lý lúc:* ${now.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}\n📈 *Symbols:* ${report.symbols.length} coins\n━━━━━━━━━━━━━━━━━━━━━━\n`;
     
     const baseMessage = formatTelegramMessage(analysis);
     const finalMessage = separator + baseMessage;
@@ -68,18 +54,15 @@ const processMessage = async (
     // 3. Gửi Telegram
     await sendTelegramMessage(env, finalMessage);
 
-    // 4. Đánh dấu đã đọc
-    await markMessageAsRead(gmailClient, message.id);
-
     logInfo("Đã xử lý & gửi Telegram thành công.", {
-      messageId: message.id,
+      reportId: report.id,
       signals: analysis.signals?.length ?? 0,
     });
 
-    return normalized;
+    return report;
   } catch (error) {
-    logError("Lỗi khi xử lý thư.", {
-      messageId: message.id,
+    logError("Lỗi khi xử lý report.", {
+      reportId: report.id,
       error: (error as Error).message,
       details: (error as AppError).context || (error as any).cause,
     });
@@ -88,7 +71,7 @@ const processMessage = async (
   }
 };
 
-const saveMailsToFile = async (mails: NormalizedMail[]) => {
+const saveReportsToFile = async (reports: NormalizedReport[]) => {
   try {
     await fs.mkdir(path.dirname(OUTPUT_PATH), { recursive: true });
     await fs.writeFile(
@@ -96,8 +79,14 @@ const saveMailsToFile = async (mails: NormalizedMail[]) => {
       JSON.stringify(
         {
           generatedAt: new Date().toISOString(),
-          total: mails.length,
-          emails: mails,
+          total: reports.length,
+          reports: reports.map((r) => ({
+            id: r.id,
+            subject: r.subject,
+            date: r.date,
+            symbols: r.symbols,
+            reportType: r.reportType,
+          })),
         },
         null,
         2,
@@ -105,125 +94,76 @@ const saveMailsToFile = async (mails: NormalizedMail[]) => {
       "utf8",
     );
 
-    logInfo("Đã lưu log email vào file JSON.", { file: OUTPUT_PATH });
-
-    // Tự động commit và push file logs lên Git
-    await autoCommitAndPushLogs(OUTPUT_PATH);
+    logInfo("Đã lưu log report vào file JSON.", { file: OUTPUT_PATH });
     
   } catch (error) {
     logError("Không thể ghi file JSON.", { error: (error as Error).message });
   }
 };
 
-// Lấy mail mới nhất trực tiếp từ Gmail (không qua file)
-const getLatestMailFromGmail = async (gmailClient: gmail_v1.Gmail): Promise<NormalizedMail | null> => {
+// Lấy report mới nhất trực tiếp từ API
+const getLatestReportFromApi = async (): Promise<NormalizedReport | null> => {
   try {
-    const query = "from:noti@vaibb.com";
-    const messages = await fetchMessages(gmailClient, query, 10);
-
-    if (messages.length === 0) {
-      return null;
-    }
-
-    // Sắp xếp theo internalDate GIẢM DẦN (mail mới nhất lên đầu)
-    const sortedMessages = messages.sort((a, b) => {
-      const dateA = parseInt(a.internalDate || "0");
-      const dateB = parseInt(b.internalDate || "0");
-      return dateB - dateA;
-    });
-
-    const latestMessage = sortedMessages[0];
-    
-    if (!latestMessage?.id) {
-      return null;
-    }
-
-    // Normalize mail để trả về
-    const normalized = normalizeMessage(latestMessage);
-    return normalized;
-    
+    const latestReport = await getLatestReport();
+    return latestReport;
   } catch (error) {
-    logError("Không thể lấy mail mới nhất từ Gmail.", { error: (error as Error).message });
+    logError("Không thể lấy report mới nhất từ API.", { error: (error as Error).message });
     return null;
   }
 };
 
-const checkNewEmails = async (env: EnvConfig, gmailClient: gmail_v1.Gmail) => {
-  logInfo("Đang kiểm tra Gmail...");
+const checkNewReports = async (env: EnvConfig) => {
+  logInfo("Đang kiểm tra API reports...");
 
-  // Lấy nhiều thư để có thể sort chính xác
-  const query = "from:noti@vaibb.com";
-  const messages = await fetchMessages(gmailClient, query, 10);
+  const latestReport = await getLatestReportFromApi();
 
-  if (messages.length === 0) {
-    logInfo("Không tìm thấy thư nào từ người gửi này.");
+  if (!latestReport) {
+    logInfo("Không tìm thấy report nào từ API.");
     return;
   }
 
-  // Sắp xếp theo internalDate GIẢM DẦN (mail mới nhất lên đầu)
-  const sortedMessages = messages.sort((a, b) => {
-    const dateA = parseInt(a.internalDate || "0");
-    const dateB = parseInt(b.internalDate || "0");
-    return dateB - dateA; // Mail mới hơn lên trước
+  // Log thông tin report mới nhất
+  const reportDate = new Date(latestReport.rawDate);
+  const diffMinutes = Math.floor((Date.now() - reportDate.getTime()) / (1000 * 60));
+
+  logInfo("Report mới nhất tìm thấy:", {
+    id: latestReport.id,
+    createdAt: latestReport.date,
+    ageMinutes: diffMinutes,
+    symbols: latestReport.symbols.length,
   });
 
-  const latestMessage = sortedMessages[0];
-  
-  if (!latestMessage?.id || !latestMessage.internalDate) {
-    logWarn("Mail mới nhất thiếu ID hoặc timestamp.");
+  // Kiểm tra trùng lặp: Nếu ID report này trùng với report đã xử lý lần trước -> Bỏ qua
+  if (latestReport.id === lastProcessedReportId) {
+    logInfo("Không có report mới. (ID report mới nhất trùng với ID đã xử lý)", { id: latestReport.id });
     return;
   }
 
-  // Log thông tin mail mới nhất
-  const mailTimestamp = parseInt(latestMessage.internalDate);
-  const mailDate = new Date(mailTimestamp);
-  const diffMinutes = Math.floor((Date.now() - mailTimestamp) / (1000 * 60));
-
-  logInfo("Mail mới nhất tìm thấy:", {
-    id: latestMessage.id,
-    receivedAt: mailDate.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
-    ageMinutes: diffMinutes
-  });
-
-  // Kiểm tra trùng lặp: Nếu ID thư này trùng với thư đã xử lý lần trước -> Bỏ qua
-  if (latestMessage.id === lastProcessedMsgId) {
-    logInfo("Không có thư mới. (ID thư mới nhất trùng với ID đã xử lý)", { id: latestMessage.id });
+  // Kiểm tra tuổi của report (chỉ xử lý report mới trong 30 phút)
+  if (diffMinutes > 30) {
+    logInfo(`Report mới nhất quá cũ (${diffMinutes} phút). Bỏ qua.`);
+    // Vẫn cập nhật ID để không check lại
+    lastProcessedReportId = latestReport.id;
     return;
   }
 
-  // Kiểm tra trạng thái đã đọc
-  const thread = await gmailClient.users.messages.get({
-    userId: 'me',
-    id: latestMessage.id,
-    format: 'minimal' 
+  // Nếu khác ID -> Có report mới -> Xử lý
+  logInfo("Phát hiện report mới (hoặc chạy lần đầu).", { 
+    newId: latestReport.id, 
+    oldId: lastProcessedReportId 
   });
 
-  const isUnread = thread.data.labelIds?.includes('UNREAD');
+  const processed = await processReport(env, latestReport);
 
-  if (!isUnread) {
-    // Nếu mail đã đọc nhưng chưa xử lý (ví dụ do restart app), kiểm tra tuổi
-    if (diffMinutes > 20) {
-      logInfo(`Mail mới nhất đã đọc và quá cũ (${diffMinutes} phút). Bỏ qua.`);
-      return;
-    } else {
-      logInfo(`Mail mới nhất đã đọc nhưng còn mới (${diffMinutes} phút). Tiếp tục xử lý...`);
-    }
-  }
-
-  // Nếu khác ID -> Có thư mới -> Xử lý
-  logInfo("Phát hiện thư mới (hoặc chạy lần đầu).", { newId: latestMessage.id, oldId: lastProcessedMsgId });
-
-  const normalized = await processMessage(env, gmailClient, latestMessage);
-
-  if (normalized) {
+  if (processed) {
     // Cập nhật ID đã xử lý
-    lastProcessedMsgId = normalized.id;
-    await saveMailsToFile([normalized]);
+    lastProcessedReportId = processed.id;
+    await saveReportsToFile([processed]);
   }
 };
 
 // Xử lý tin nhắn từ Telegram (Chatbot)
-const handleTelegramMessages = async (env: EnvConfig, gmailClient: gmail_v1.Gmail) => {
+const handleTelegramMessages = async (env: EnvConfig) => {
   try {
     const updates = await getTelegramUpdates(env, lastTelegramUpdateId);
 
@@ -251,45 +191,35 @@ const handleTelegramMessages = async (env: EnvConfig, gmailClient: gmail_v1.Gmai
 
       logInfo("Nhận câu hỏi từ người dùng:", { question: userMessage });
 
-      // Gửi tin nhắn "đang xử lý" ngay lập tức với format đẹp
-      const processingMsg = `
-🔄 *ĐANG XỬ LÝ...*
+      // Gửi tin nhắn "đang xử lý" ngay lập tức với format đẹp (Markdown)
+      const processingMsg = `🔄 *ĐANG XỬ LÝ...*
 
-📥 Đang lấy email mới nhất từ Gmail
+📥 Đang lấy report mới nhất từ API
 🤖 Đang phân tích dữ liệu với AI
-⏱️ Vui lòng đợi trong giây lát...
-`;
-      await sendTelegramMessage(env, processingMsg);
+⏱️ Vui lòng đợi trong giây lát...`;
+      await sendTelegramChatMessage(env, processingMsg);
 
-      // Lấy mail mới nhất trực tiếp từ Gmail
-      const latestMail = await getLatestMailFromGmail(gmailClient);
+      // Lấy report mới nhất trực tiếp từ API
+      const latestReport = await getLatestReportFromApi();
 
-      if (!latestMail) {
-        const errorMsg = `
-❌ *KHÔNG TÌM THẤY DỮ LIỆU*
+      if (!latestReport) {
+        const errorMsg = `❌ *KHÔNG TÌM THẤY DỮ LIỆU*
 
-Không có email nào từ noti@vaibb.com trong hộp thư.
-Vui lòng thử lại sau hoặc kiểm tra nguồn email.
-`;
-        await sendTelegramMessage(env, errorMsg);
+Không có report nào từ API.
+Vui lòng thử lại sau hoặc kiểm tra nguồn dữ liệu.`;
+        await sendTelegramChatMessage(env, errorMsg);
         continue;
       }
 
-      // Trả lời dựa trên mail mới nhất
-      const answer = await answerQuestion(env, userMessage, latestMail);
+      // Trả lời dựa trên report mới nhất (AI đã format Markdown)
+      const answer = await answerQuestion(env, userMessage, latestReport);
 
-      // Format mail date
-      const mailDate = new Date(latestMail.date).toLocaleString('vi-VN', { 
-        timeZone: 'Asia/Ho_Chi_Minh',
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      // Format report date
+      const reportDate = latestReport.date;
 
-      // Gửi trả lời với format đẹp
-      const formattedReply = formatBotReply(answer, mailDate);
-      await sendTelegramMessage(env, formattedReply);
+      // Gửi trả lời với format đẹp (Markdown)
+      const formattedReply = formatBotReply(answer, reportDate);
+      await sendTelegramChatMessage(env, formattedReply);
 
     }
   } catch (error) {
@@ -302,25 +232,25 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const main = async () => {
   try {
     const env = getEnv();
-    const gmailClient = createGmailClient(env);
 
     logInfo(`Bắt đầu ứng dụng.`);
-    logInfo(`📧 Gmail: Check mỗi ${GMAIL_CHECK_INTERVAL_MS / 60000} phút`);
+    logInfo(`📊 API: Check mỗi ${API_CHECK_INTERVAL_MS / 60000} phút`);
     logInfo(`💬 Telegram: Check realtime (mỗi ${TELEGRAM_CHECK_INTERVAL_MS / 1000} giây)`);
     logInfo("Bot Telegram đã sẵn sàng trả lời câu hỏi!");
+    logInfo("🔗 Data source: https://first.fsignal.xyz/api/reports");
 
     // Chạy vòng lặp vô tận
     while (true) {
       const now = Date.now();
       
-      // Kiểm tra Gmail chỉ khi đã qua 1 phút kể từ lần check cuối
-      if (now - lastGmailCheckTime >= GMAIL_CHECK_INTERVAL_MS) {
-        await checkNewEmails(env, gmailClient);
-        lastGmailCheckTime = now;
+      // Kiểm tra API chỉ khi đã qua 1 phút kể từ lần check cuối
+      if (now - lastApiCheckTime >= API_CHECK_INTERVAL_MS) {
+        await checkNewReports(env);
+        lastApiCheckTime = now;
       }
       
       // Lắng nghe tin nhắn Telegram (chạy mỗi vòng lặp = realtime)
-      await handleTelegramMessages(env, gmailClient);
+      await handleTelegramMessages(env);
       
       // Đợi 2 giây trước khi lặp lại (Telegram check mỗi 2s)
       await sleep(TELEGRAM_CHECK_INTERVAL_MS);

@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { EnvConfig } from "../config/env";
-import { NormalizedMail } from "../types/mail";
+import { NormalizedMail, NormalizedReport } from "../types/mail";
 import { ExternalServiceError } from "../lib/errors";
 import { logDebug, logInfo } from "../utils/logger";
 import { ENTRY_SCORE_RULES } from "../config/scoringRules";
@@ -21,22 +21,22 @@ type ConversationItem = {
   question: string;
   answer: string;
   timestamp: Date;
-  mailDate?: string;
+  reportDate?: string;
 };
 
 const MAX_HISTORY = 5;
 let conversationHistory: ConversationItem[] = [];
 
 // Thêm câu hỏi/trả lời vào lịch sử
-const addToHistory = (question: string, answer: string, mailDate?: string): void => {
+const addToHistory = (question: string, answer: string, reportDate?: string): void => {
   const item: ConversationItem = {
     question,
     answer,
     timestamp: new Date(),
   };
   
-  if (mailDate) {
-    item.mailDate = mailDate;
+  if (reportDate) {
+    item.reportDate = reportDate;
   }
   
   conversationHistory.unshift(item);
@@ -84,7 +84,7 @@ export const getConversationHistoryDebug = () => {
     question: item.question,
     answer: item.answer.substring(0, 100) + "...",
     timestamp: item.timestamp.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }),
-    mailDate: item.mailDate
+    reportDate: item.reportDate
   }));
 };
 
@@ -95,11 +95,11 @@ export const resetConversationHistory = () => {
   logInfo("Đã reset conversation history.", { oldLength });
 };
 
-// Hàm trả lời câu hỏi dựa trên data mail
+// Hàm trả lời câu hỏi dựa trên data report (hoặc mail legacy)
 export const answerQuestion = async (
   config: EnvConfig,
   question: string,
-  latestMail: NormalizedMail | null
+  latestData: NormalizedReport | NormalizedMail | null
 ): Promise<string> => {
   const genAI = new GoogleGenerativeAI(config.geminiApiKey);
   const model = genAI.getGenerativeModel({
@@ -110,131 +110,146 @@ export const answerQuestion = async (
     // Build conversation history cho Gemini (multi-turn conversation)
     const conversationHistoryArray = buildConversationHistory();
     
-    let contextData = "KHÔNG CÓ DỮ LIỆU EMAIL NÀO.";
+    let contextData = "KHÔNG CÓ DỮ LIỆU NÀO.";
     
-    if (latestMail) {
-      contextData = `
-DỮ LIỆU EMAIL MỚI NHẤT:
-- Tiêu đề: ${latestMail.subject}
-- Từ: ${latestMail.from}
-- Ngày: ${latestMail.date}
-- Nội dung chính: 
-${latestMail.htmlText || latestMail.plainText || latestMail.snippet}
+    if (latestData) {
+      // Check if it's a NormalizedReport (has sectionsMarkdown)
+      if ('sectionsMarkdown' in latestData) {
+        const report = latestData as NormalizedReport;
+        contextData = `
+DỮ LIỆU REPORT MỚI NHẤT TỪ API:
+━━━━━━━━━━━━━━━━━━━━━━
+• *Report ID:* \`${report.id}\`
+• *Tiêu đề:* ${report.subject}
+• *Từ:* ${report.from}
+• *Ngày:* ${report.date}
+• *Loại report:* ${report.reportType}
+• *Symbols (${report.symbols.length}):* ${report.symbols.join(", ")}
+
+=== NỘI DUNG CHI TIẾT (MARKDOWN) ===
+${report.sectionsMarkdown.join("\n\n---\n\n")}
 `;
+      } else {
+        // Legacy: NormalizedMail
+        const mail = latestData as NormalizedMail;
+        contextData = `
+DỮ LIỆU EMAIL MỚI NHẤT:
+• *Tiêu đề:* ${mail.subject}
+• *Từ:* ${mail.from}
+• *Ngày:* ${mail.date}
+• *Nội dung chính:* 
+${mail.htmlText || mail.plainText || mail.snippet}
+`;
+      }
     }
 
     const systemPrompt = `Bạn là trợ lý phân tích tín hiệu Crypto chuyên nghiệp, có khả năng giải thích thuật ngữ một cách dễ hiểu.
 
 NGUYÊN TẮC QUAN TRỌNG NHẤT:
 ━━━━━━━━━━━━━━━━━━━━━━
-1. ⚠️ TUYỆT ĐỐI KHÔNG BỊA/ĐOÁN/GIẢ ĐỊNH dữ liệu không có trong email
-2. ⚠️ CHỈ TRẢ LỜI DỰA TRÊN DỮ LIỆU EMAIL CÓ SẴN bên dưới
-3. ⚠️ Nếu email KHÔNG chứa thông tin cần thiết → Nói rõ: "❌ Email không có thông tin về [vấn đề X]"
-4. ⚠️ KHÔNG sử dụng kiến thức chung về crypto để thêm thông tin không có trong email
+1. ⚠️ TUYỆT ĐỐI KHÔNG BỊA/ĐOÁN/GIẢ ĐỊNH dữ liệu không có trong report
+2. ⚠️ CHỈ TRẢ LỜI DỰA TRÊN DỮ LIỆU REPORT CÓ SẴN bên dưới
+3. ⚠️ Nếu report KHÔNG chứa thông tin cần thiết → Nói rõ: "❌ Report không có thông tin về [vấn đề X]"
+4. ⚠️ KHÔNG sử dụng kiến thức chung về crypto để thêm thông tin không có trong report
 
 NGUYÊN TẮC VỀ NGỮ CẢNH HỘI THOẠI:
 ━━━━━━━━━━━━━━━━━━━━━━
-- Bạn đang trong một cuộc hội thoại liên tục với người dùng
-- Nếu câu hỏi liên quan đến câu trả lời trước (VD: "còn ETH thì sao?", "Entry là bao nhiêu?", "coin nào khác?"):
-  → Hiểu ngữ cảnh và trả lời dựa trên dữ liệu email hiện tại
-- Nếu câu hỏi hoàn toàn mới và không liên quan:
-  → Trả lời độc lập dựa trên email
-- LUÔN ưu tiên dữ liệu email mới nhất, KHÔNG dựa vào memory cũ nếu email không có thông tin đó
+• Bạn đang trong một cuộc hội thoại liên tục với người dùng
+• Nếu câu hỏi liên quan đến câu trả lời trước (VD: "còn ETH thì sao?", "Entry là bao nhiêu?", "coin nào khác?"):
+  → Hiểu ngữ cảnh và trả lời dựa trên dữ liệu report hiện tại
+• Nếu câu hỏi hoàn toàn mới và không liên quan:
+  → Trả lời độc lập dựa trên report
+• LUÔN ưu tiên dữ liệu report mới nhất, KHÔNG dựa vào memory cũ nếu report không có thông tin đó
 
 CÁC NHIỆM VỤ:
 ━━━━━━━━━━━━━━━━━━━━━━
 A. TRÍCH XUẤT DỮ LIỆU:
-   - Đọc kỹ email và trích xuất CHÍNH XÁC thông tin được hỏi
-   - Trích dẫn GIÁ TRỊ CỤ THỂ từ email (số, giá, phần trăm)
-   - KHÔNG làm tròn, thay đổi hoặc ước lượng số liệu
-   - Tìm các thông tin chuyên ngành: Edge Score, RR (Risk:Reward), ADX, Fear-Greed Index, Classification, Volatility
-   - Chú ý các bảng trong email (thường có Entry, SL, TP1, TP2, TP3, RR, Edge Score)
+   • Đọc kỹ report và trích xuất CHÍNH XÁC thông tin được hỏi
+   • Trích dẫn GIÁ TRỊ CỤ THỂ từ report (số, giá, phần trăm)
+   • KHÔNG làm tròn, thay đổi hoặc ước lượng số liệu
+   • Tìm các thông tin chuyên ngành: Edge Score, RR (Risk:Reward), ADX, Fear-Greed Index, Classification, Volatility
+   • Chú ý các bảng trong report (thường có Entry, SL, TP1, TP2, TP3, RR, Edge Score)
 
 B. GIẢI THÍCH THUẬT NGỮ:
-   - Khi trả lời có thuật ngữ chuyên ngành → LUÔN LUÔN giải thích ngay sau thuật ngữ đó
-   - Format: **Thuật ngữ** (Giải thích ngắn gọn, dễ hiểu)
-   - Ví dụ tốt:
-     * **Entry** (Điểm vào lệnh - Giá mua/bán để bắt đầu giao dịch)
-     * **Stop Loss (SL)** (Điểm cắt lỗ - Giá tự động đóng lệnh để giới hạn thua lỗ)
-     * **Take Profit (TP)** (Chốt lời - Mức giá đóng lệnh để thu lợi nhuận)
-     * **LONG** (Mua lên - Đặt cược giá sẽ tăng)
-     * **SHORT** (Bán xuống - Đặt cược giá sẽ giảm)
-     * **Timeframe** (Khung thời gian - VD: 1h = biểu đồ 1 giờ, 4h = biểu đồ 4 giờ)
-     * **Support/Resistance** (Hỗ trợ/Kháng cự - Vùng giá thường dừng/đảo chiều)
-     * **Breakout** (Phá vỡ - Giá vượt qua vùng quan trọng)
-     * **R:R hay Risk:Reward** (Tỷ lệ rủi ro/lợi nhuận - VD: R:R 1:3 = Rủi ro 1$ để kiếm 3$, hoặc "RR = 1.3/2.5/4.0" trong email)
-     * **Edge Score** (Điểm mạnh tín hiệu từ email - Scale 0-7, càng cao càng tốt)
-     * **Gợi ý vào lệnh** (Điểm đánh giá 0-100 - Càng cao càng tốt, dựa trên Edge Score, R:R, Trend Strength, Market Context)
-     * **ADX** (Chỉ số xu hướng - ADX > 25 = xu hướng mạnh, ADX < 20 = sideway yếu)
-     * **Fear-Greed Index** (Chỉ số tâm lý thị trường - < 20 = Fear tốt cho SHORT, > 70 = Greed tốt cho LONG)
-     * **Volatility** (Độ biến động - "high" hoặc "very_high" trong email)
-     * **Classification** (Phân loại - "decrease" = giảm mạnh, "increase" = tăng mạnh, "chaos" = hỗn loạn, "stay_out" = không vào)
+   • Khi trả lời có thuật ngữ chuyên ngành → LUÔN LUÔN giải thích ngay sau thuật ngữ đó
+   • Format: *Thuật ngữ* (Giải thích ngắn gọn, dễ hiểu)
+   • Ví dụ tốt:
+     ╰─ *Entry* (Điểm vào lệnh - Giá mua/bán để bắt đầu giao dịch)
+     ╰─ *Stop Loss (SL)* (Điểm cắt lỗ - Giá tự động đóng lệnh để giới hạn thua lỗ)
+     ╰─ *Take Profit (TP)* (Chốt lời - Mức giá đóng lệnh để thu lợi nhuận)
+     ╰─ *LONG* (Mua lên - Đặt cược giá sẽ tăng)
+     ╰─ *SHORT* (Bán xuống - Đặt cược giá sẽ giảm)
+     ╰─ *Timeframe* (Khung thời gian - VD: 1h = biểu đồ 1 giờ, 4h = biểu đồ 4 giờ)
+     ╰─ *R:R hay Risk:Reward* (Tỷ lệ rủi ro/lợi nhuận - VD: R:R 1:3 = Rủi ro 1$ để kiếm 3$)
+     ╰─ *Edge Score* (Điểm mạnh tín hiệu - Scale 0-7, càng cao càng tốt)
+     ╰─ *Entry Score* (Điểm đánh giá 0-100 - Càng cao càng tốt)
 
-C. FORMAT TRẢ LỜI CHUYÊN NGHIỆP:
-   - Dùng box/separator để tách phần (━━━━━━━━━━)
-   - Icon phù hợp: 📊💰🎯🛑⚡📈📉🟢🔴⚠️✅❌🔥⭐💡📥
-   - **Bold** cho keywords quan trọng, _italic_ cho ghi chú
-   - Code block \`...\` cho số liệu (giá, TP, SL)
-   - Bullet points (•) hoặc ╰─ cho sub-items
-   - LUÔN format như ví dụ mẫu bên dưới
+C. FORMAT TRẢ LỜI CHUYÊN NGHIỆP (TELEGRAM MARKDOWN):
+   • Dùng box/separator để tách phần (━━━━━━━━━━)
+   • Icon phù hợp: 📊💰🎯🛑⚡📈📉🟢🔴⚠️✅❌🔥⭐💡📥
+   • *Bold* cho keywords quan trọng (dùng 1 dấu sao *)
+   • _italic_ cho ghi chú (dùng dấu gạch dưới)
+   • \`code\` cho số liệu (giá, TP, SL) - dùng backtick
+   • Bullet points (•) hoặc ╰─ cho sub-items
+   • KHÔNG dùng ** (2 dấu sao) - Telegram Markdown chỉ dùng 1 dấu *
 
 ${contextData}
 
 QUY TRÌNH TRẢ LỜI:
 ━━━━━━━━━━━━━━━━━━━━━━
-Bước 1: Kiểm tra email có chứa thông tin được hỏi không?
-   → KHÔNG có → Trả lời: "❌ Email không có thông tin về [vấn đề này]"
+Bước 1: Kiểm tra report có chứa thông tin được hỏi không?
+   → KHÔNG có → Trả lời: "❌ Report không có thông tin về [vấn đề này]"
    → CÓ → Tiếp tục Bước 2
 
-Bước 2: Trích xuất CHÍNH XÁC dữ liệu từ email (không thêm/bớt/sửa)
+Bước 2: Trích xuất CHÍNH XÁC dữ liệu từ report (không thêm/bớt/sửa)
 
-Bước 3: Tính điểm gợi ý vào lệnh (0-100) - ÁP DỤNG CÙNG QUY TẮC VỚI PHÂN TÍCH EMAIL:
+Bước 3: Tính điểm gợi ý vào lệnh (0-100) - ÁP DỤNG CÙNG QUY TẮC:
 ${ENTRY_SCORE_RULES}
 
 Bước 4: Format câu trả lời:
-   - Liệt kê thông tin rõ ràng với box separator ━━━
-   - Giải thích NGAY các thuật ngữ chuyên ngành
-   - Dùng emoji và code block \`...\` cho số liệu
-   - Thêm score ngay dưới phần TP
+   • Liệt kê thông tin rõ ràng với box separator ━━━
+   • Giải thích NGAY các thuật ngữ chuyên ngành
+   • Dùng emoji và code block \`...\` cho số liệu
+   • Thêm score ngay dưới phần TP
 
 Bước 5: Kiểm tra lại lần cuối:
-   - Có bịa thông tin nào không? → XÓA ngay
-   - Có thuật ngữ nào chưa giải thích? → THÊM giải thích
-   - Có tín hiệu LONG/SHORT mà thiếu score? → THÊM score sâu và dễ hiểu
+   • Có bịa thông tin nào không? → XÓA ngay
+   • Có thuật ngữ nào chưa giải thích? → THÊM giải thích
+   • Có tín hiệu LONG/SHORT mà thiếu score? → THÊM score
 
-VÍ DỤ TRẢ LỜI CHUYÊN NGHIỆP:
+VÍ DỤ TRẢ LỜI CHUYÊN NGHIỆP (TELEGRAM MARKDOWN):
 ━━━━━━━━━━━━━━━━━━━━━━
 Câu hỏi: "BTC có tín hiệu gì không?"
 
-✅ TRẢ LỜI TỐT (CHUYÊN NGHIỆP):
+✅ TRẢ LỜI TỐT:
 
-"━━━━━━━━━━━━━━━━━━━━━━
-🔴 **BTCUSDT** - TÍN HIỆU SHORT
+━━━━━━━━━━━━━━━━━━━━━━
+🔴 *BTCUSDT* - TÍN HIỆU SHORT
 ━━━━━━━━━━━━━━━━━━━━━━
 
-📥 **Entry** (Điểm vào lệnh)
+📥 *Entry* (Điểm vào lệnh)
    \`83,224.63 USDT\`
 
-🛑 **Stop Loss** (Cắt lỗ)
+🛑 *Stop Loss* (Cắt lỗ)
    \`84,573.09 USDT\`
 
-🎯 **Take Profit** (Chốt lời)
+🎯 *Take Profit* (Chốt lời)
    • TP1: \`81,471.63\`
    • TP2: \`79,853.47\`
    • TP3: \`77,830.78\`
 
-📊 **Gợi ý vào lệnh: 100/100** 🔥🔥🔥 _CỰC TỐT_
-   ╰─ Edge Score 7, RR 1.3/2.5/4.0 (rủi ro 1, lời 4)
-   ╰─ ADX mạnh, Fear-Greed = 11 (Extreme Fear)
+📊 *Entry Score: 85/100* 🔥🔥 _RẤT TỐT_
+   ╰─ Edge Score 6/7, RR 1.3/2.5/4.0
+   ╰─ ADX mạnh, Fear-Greed = 11
 
-⏱ **Timeframe**: 1h (Stop-breakout)
-💡 **Lý do**: _Down-trend strong, ADX > 25, thị trường cực kỳ sợ hãi_
+⏱ *Timeframe*: 1h (Stop-breakout)
+💡 *Lý do*: _Down-trend strong, ADX > 25_
 
-━━━━━━━━━━━━━━━━━━━━━━"
+━━━━━━━━━━━━━━━━━━━━━━
 
 ❌ TRẢ LỜI XẤU (BỊA THÔNG TIN):
 "BTC đang có xu hướng tăng mạnh, bạn nên mua ở 83,000 và chốt lời ở 90,000" 
-→ SAI vì email không nói 90,000!
+→ SAI vì report không nói 90,000!
 
 ❌ TRẢ LỜI XẤU (KHÔNG CÓ SCORE):
 "BTC có tín hiệu LONG, entry 83,439..."
@@ -246,7 +261,7 @@ HÃY BẮT ĐẦU TRẢ LỜI!`;
     const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [
       // System prompt (đặt ở đầu như một "user" message để set context)
       { role: "user", parts: [{ text: systemPrompt }] },
-      { role: "model", parts: [{ text: "Đã hiểu! Tôi sẽ trả lời DỰA TRÊN DỮ LIỆU EMAIL, KHÔNG BỊA, giải thích thuật ngữ rõ ràng, và duy trì ngữ cảnh hội thoại. Hãy hỏi tôi!" }] },
+      { role: "model", parts: [{ text: "Đã hiểu! Tôi sẽ trả lời DỰA TRÊN DỮ LIỆU REPORT, KHÔNG BỊA, giải thích thuật ngữ rõ ràng, format Markdown đẹp, và duy trì ngữ cảnh hội thoại. Hãy hỏi tôi!" }] },
       
       // Thêm conversation history (5 câu gần nhất)
       ...conversationHistoryArray,
@@ -267,7 +282,8 @@ HÃY BẮT ĐẦU TRẢ LỜI!`;
     const answer = result.response.text() || "❌ Xin lỗi, tôi không thể trả lời câu hỏi này.";
     
     // Lưu câu hỏi/trả lời vào lịch sử (chỉ lưu 5 câu gần nhất)
-    addToHistory(question, answer, latestMail?.date);
+    const dataDate = latestData ? ('rawDate' in latestData ? latestData.date : latestData.date) : undefined;
+    addToHistory(question, answer, dataDate);
     
     return answer;
 
@@ -279,8 +295,8 @@ HÃY BẮT ĐẦU TRẢ LỜI!`;
   }
 };
 
-// Format tin nhắn trả lời chuyên nghiệp
-export const formatBotReply = (answer: string, mailDate?: string): string => {
+// Format tin nhắn trả lời chuyên nghiệp (Telegram Markdown)
+export const formatBotReply = (answer: string, reportDate?: string): string => {
   const timestamp = new Date().toLocaleString('vi-VN', { 
     timeZone: 'Asia/Ho_Chi_Minh',
     hour: '2-digit',
@@ -289,17 +305,23 @@ export const formatBotReply = (answer: string, mailDate?: string): string => {
     month: '2-digit'
   });
 
-  let header = `\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n`;
-  header += `┃  🤖 *AI CRYPTO ADVISOR*     ┃\n`;
-  header += `┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n\n`;
+  const header = `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  🤖 *AI CRYPTO ADVISOR*     ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-  let footer = `\n\n╭───────────────────────────╮\n`;
-  footer += `│ ⏰ *Trả lời:* ${timestamp}\n`;
-  if (mailDate) {
-    footer += `│ 📧 *Data:* ${mailDate}\n`;
+`;
+
+  let footer = `
+
+╭───────────────────────────╮
+│ ⏰ *Trả lời:* ${timestamp}`;
+  if (reportDate) {
+    footer += `
+│ 📊 *Data:* ${reportDate}`;
   }
-  footer += `│ 💡 *Tip:* Luôn DYOR và quản lý rủi ro\n`;
-  footer += `╰───────────────────────────╯`;
+  footer += `
+│ 💡 *Tip:* Luôn DYOR và quản lý rủi ro
+╰───────────────────────────╯`;
 
   return header + answer + footer;
 };
