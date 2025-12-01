@@ -1,5 +1,5 @@
 /**
- * TELEGRAM FORMATTER - Giao diện Mobile chuyên nghiệp
+ * TELEGRAM FORMATTER - High-tech Minimalist Design
  * HTML format (parse_mode: HTML)
  */
 
@@ -17,22 +17,28 @@ const escapeHtml = (text: string): string => {
     .replace(/>/g, "&gt;");
 };
 
-const getDirectionStyle = (direction: string): { icon: string; bg: string; label: string } => {
+const getDirectionStyle = (direction: string): { icon: string; label: string; color: string } => {
   switch (direction) {
-    case "LONG": return { icon: "🟢", bg: "📈", label: "LONG" };
-    case "SHORT": return { icon: "🔴", bg: "📉", label: "SHORT" };
-    case "STAY_OUT": return { icon: "⚪", bg: "⏸", label: "STAY OUT" };
-    default: return { icon: "⚫", bg: "❓", label: direction };
+    case "LONG": return { icon: "▲", label: "LONG", color: "🟢" };
+    case "SHORT": return { icon: "▼", label: "SHORT", color: "🔴" };
+    case "STAY_OUT": return { icon: "◆", label: "WAIT", color: "⚪" };
+    default: return { icon: "●", label: direction, color: "⚫" };
   }
 };
 
-const getScoreInfo = (score: number): { stars: string; label: string; emoji: string } => {
-  if (score >= 90) return { stars: "★★★★★", label: "XUẤT SẮC", emoji: "🔥" };
-  if (score >= 80) return { stars: "★★★★☆", label: "RẤT TỐT", emoji: "⭐" };
-  if (score >= 70) return { stars: "★★★☆☆", label: "TỐT", emoji: "✨" };
-  if (score >= 55) return { stars: "★★☆☆☆", label: "KHÁ", emoji: "👍" };
-  if (score >= 40) return { stars: "★☆☆☆☆", label: "TB", emoji: "⚠️" };
-  return { stars: "☆☆☆☆☆", label: "YẾU", emoji: "❌" };
+const getScoreBar = (score: number): string => {
+  const filled = Math.round(score / 10);
+  const empty = 10 - filled;
+  return "█".repeat(filled) + "░".repeat(empty);
+};
+
+const getScoreLabel = (score: number): { label: string; icon: string } => {
+  if (score >= 90) return { label: "XUẤT SẮC", icon: "🔥" };
+  if (score >= 80) return { label: "RẤT TỐT", icon: "⚡" };
+  if (score >= 70) return { label: "TỐT", icon: "✨" };
+  if (score >= 55) return { label: "KHÁ", icon: "👍" };
+  if (score >= 40) return { label: "TB", icon: "📊" };
+  return { label: "YẾU", icon: "⬇️" };
 };
 
 const formatPrice = (price: string | number | undefined): string => {
@@ -46,127 +52,100 @@ const formatPrice = (price: string | number | undefined): string => {
   return num.toFixed(6);
 };
 
-// Tạo mô tả chi tiết cho coin
+// Tạo mô tả chi tiết
 const generateDescription = (signal: TradingSignal): string => {
   const parts: string[] = [];
   
-  // Scenario description
+  const scenarioDesc: { [key: string]: string } = {
+    "A": "Perfect setup, strong trend",
+    "B": "Good setup, clear breakout", 
+    "C": "Compression pattern",
+    "D": "Need confirmation",
+    "F1": "Pullback to support",
+    "F2": "Pullback to MA",
+    "F3": "Pullback to Fibo",
+    "G": "High risk setup"
+  };
+  
+  const entryDesc: { [key: string]: string } = {
+    "stop_breakout": "Enter on breakout",
+    "limit_pullback": "Wait for pullback",
+    "market_now": "Enter at market"
+  };
+  
   if (signal.scenario) {
-    const scenarioDesc: { [key: string]: string } = {
-      "A": "Setup hoàn hảo, xu hướng mạnh",
-      "B": "Setup tốt, breakout rõ ràng", 
-      "C": "Setup khá, compression pattern",
-      "D": "Setup trung bình, cần xác nhận",
-      "F1": "Pullback về vùng hỗ trợ",
-      "F2": "Pullback về MA",
-      "F3": "Pullback về Fibo",
-      "G": "Setup rủi ro, cẩn thận"
-    };
-    parts.push(scenarioDesc[signal.scenario] || `Scenario ${signal.scenario}`);
+    const desc = scenarioDesc[signal.scenario];
+    if (desc) parts.push(desc);
   }
-  
-  // Entry type description
   if (signal.entryType) {
-    const entryDesc: { [key: string]: string } = {
-      "stop_breakout": "Vào khi phá vỡ",
-      "limit_pullback": "Chờ hồi về rồi vào",
-      "market_now": "Vào ngay giá hiện tại"
-    };
-    parts.push(entryDesc[signal.entryType] || signal.entryType);
+    const desc = entryDesc[signal.entryType];
+    if (desc) parts.push(desc);
   }
-  
-  // Original reason
   if (signal.reason) {
     parts.push(signal.reason);
   }
   
-  return parts.join(". ") || "Không có mô tả";
+  return parts.join(" • ") || "No description";
 };
 
 // ════════════════════════════════════════════
-// FORMAT SIGNAL CARD - Card đẹp cho mỗi coin
+// FORMAT SIGNAL CARD - High-tech Design
 // ════════════════════════════════════════════
 
 const formatSignalCard = (signal: TradingSignal, index: number): string => {
   const dir = getDirectionStyle(signal.direction);
   
-  // Điểm số
   const edgeScore7 = signal.edgeScore ?? 0;
   const edgeScore100 = convertEdgeScoreTo100(edgeScore7);
   const entryScore = signal.entryScore ?? edgeScore100;
   const mainScore = Math.max(edgeScore100, entryScore);
-  const scoreInfo = getScoreInfo(mainScore);
+  const scoreInfo = getScoreLabel(mainScore);
   
   const lines: string[] = [];
   
   // ═══════════════════════════════════════
-  // HEADER - Tên coin nổi bật
+  // HEADER
   // ═══════════════════════════════════════
   lines.push(``);
-  lines.push(`╔══════════════════════════╗`);
-  lines.push(`║ ${dir.bg} <b>${escapeHtml(signal.symbol)}</b>`);
-  lines.push(`║ ${dir.icon} <b>${dir.label}</b> │ ⏱ ${signal.timeframe || "4h"}`);
-  lines.push(`╠══════════════════════════╣`);
+  lines.push(`┌─────────────────────────────┐`);
+  lines.push(`│ ${dir.color} <b>${escapeHtml(signal.symbol)}</b>  ${dir.icon} <b>${dir.label}</b>  ⏱${signal.timeframe || "4h"}`);
+  lines.push(`└─────────────────────────────┘`);
   
-  // ═══════════════════════════════════════
-  // ĐIỂM SỐ
-  // ═══════════════════════════════════════
-  lines.push(`║ ${scoreInfo.emoji} <b>ĐIỂM:</b> <code>${mainScore}</code>/100`);
-  lines.push(`║    ${scoreInfo.stars} ${scoreInfo.label}`);
+  // Score bar
+  lines.push(`  ${scoreInfo.icon} <code>${getScoreBar(mainScore)}</code> <b>${mainScore}</b>/100`);
+  lines.push(`     ${scoreInfo.label}`);
+  lines.push(``);
   
-  // ═══════════════════════════════════════
-  // GIÁ HIỆN TẠI
-  // ═══════════════════════════════════════
+  // Price info - compact
   if (signal.price && signal.price !== "-") {
-    lines.push(`╠══════════════════════════╣`);
-    lines.push(`║ 💰 <b>Giá hiện tại:</b>`);
-    lines.push(`║    <code>${formatPrice(signal.price)}</code> USDT`);
+    lines.push(`  💰 Price   <code>${formatPrice(signal.price)}</code>`);
   }
-  
-  // ═══════════════════════════════════════
-  // ENTRY / SL / TP
-  // ═══════════════════════════════════════
-  lines.push(`╠══════════════════════════╣`);
   
   const entryPrice = signal.trigger || signal.entry;
   if (entryPrice && entryPrice !== "-") {
-    lines.push(`║ 📥 <b>Entry:</b> <code>${formatPrice(entryPrice)}</code>`);
+    lines.push(`  📥 Entry   <code>${formatPrice(entryPrice)}</code>`);
   }
   
   if (signal.stopLoss && signal.stopLoss !== "-") {
-    lines.push(`║ 🛑 <b>SL:</b> <code>${formatPrice(signal.stopLoss)}</code>`);
+    lines.push(`  🛑 SL      <code>${formatPrice(signal.stopLoss)}</code>`);
   }
   
   if (signal.takeProfits && signal.takeProfits.length > 0) {
-    const validTPs = signal.takeProfits.filter(tp => tp && tp !== "-");
+    const validTPs = signal.takeProfits.filter(tp => tp && tp !== "-").slice(0, 3);
     if (validTPs.length > 0) {
-      lines.push(`║ 🎯 <b>TP:</b>`);
-      validTPs.slice(0, 3).forEach((tp, i) => {
-        lines.push(`║    TP${i + 1}: <code>${formatPrice(tp)}</code>`);
-      });
+      const tpStr = validTPs.map(tp => `<code>${formatPrice(tp)}</code>`).join(" → ");
+      lines.push(`  🎯 TP      ${tpStr}`);
     }
   }
   
-  // ═══════════════════════════════════════
-  // R:R
-  // ═══════════════════════════════════════
   if (signal.rr && signal.rr !== "-") {
-    lines.push(`║ 📈 <b>R:R:</b> ${escapeHtml(signal.rr)}`);
+    lines.push(`  📈 R:R     ${escapeHtml(signal.rr)}`);
   }
   
-  // ═══════════════════════════════════════
-  // MÔ TẢ CHI TIẾT
-  // ═══════════════════════════════════════
-  lines.push(`╠══════════════════════════╣`);
-  const description = generateDescription(signal);
-  // Chia mô tả thành nhiều dòng nếu dài
-  const descLines = description.match(/.{1,28}/g) || [description];
-  lines.push(`║ 💡 <b>Phân tích:</b>`);
-  descLines.forEach(line => {
-    lines.push(`║    <i>${escapeHtml(line)}</i>`);
-  });
-  
-  lines.push(`╚══════════════════════════╝`);
+  // Description
+  lines.push(``);
+  const desc = generateDescription(signal);
+  lines.push(`  💡 <i>${escapeHtml(desc.substring(0, 45))}${desc.length > 45 ? '...' : ''}</i>`);
   
   return lines.join("\n");
 };
@@ -181,7 +160,6 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
   const stayOutCount = analysis.signals?.filter(s => s.direction === "STAY_OUT").length || 0;
   const total = longSignals.length + shortSignals.length;
   
-  // Sort theo điểm
   const sortByScore = (a: TradingSignal, b: TradingSignal) => {
     const scoreA = Math.max(convertEdgeScoreTo100(a.edgeScore ?? 0), a.entryScore ?? 0);
     const scoreB = Math.max(convertEdgeScoreTo100(b.edgeScore ?? 0), b.entryScore ?? 0);
@@ -200,61 +178,47 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
     hour: '2-digit',
     minute: '2-digit',
     day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
+    month: '2-digit'
   });
   
-  lines.push(`┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓`);
-  lines.push(`┃  📊 <b>BÁO CÁO TÍN HIỆU</b>        ┃`);
-  lines.push(`┃  ⏰ ${now}     ┃`);
-  lines.push(`┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛`);
+  lines.push(`╔═══════════════════════════════╗`);
+  lines.push(`║   📊 <b>TRADING SIGNALS</b>         ║`);
+  lines.push(`║   ⏰ ${now}              ║`);
+  lines.push(`╚═══════════════════════════════╝`);
   lines.push(``);
   
   // ═══════════════════════════════════════
-  // THỐNG KÊ
+  // STATS
   // ═══════════════════════════════════════
-  lines.push(`📈 <b>THỐNG KÊ TỔNG QUAN</b>`);
-  lines.push(`┌────────────────────────────┐`);
-  lines.push(`│ 📊 Tổng tín hiệu: <b>${total}</b>`);
-  lines.push(`│ 🟢 LONG: <b>${longSignals.length}</b>  │  🔴 SHORT: <b>${shortSignals.length}</b>`);
-  if (stayOutCount > 0) {
-    lines.push(`│ ⚪ STAY OUT: <b>${stayOutCount}</b>`);
-  }
+  lines.push(`<b>📈 OVERVIEW</b>`);
+  lines.push(`   Total: <b>${total}</b> signals`);
+  lines.push(`   🟢 LONG <b>${longSignals.length}</b>  │  🔴 SHORT <b>${shortSignals.length}</b>${stayOutCount > 0 ? `  │  ⚪ WAIT <b>${stayOutCount}</b>` : ''}`);
   
-  // Top coins
   if (total > 0) {
     const allSignals = [...longSignals, ...shortSignals].sort(sortByScore);
     const top3 = allSignals.slice(0, 3);
-    lines.push(`│`);
-    lines.push(`│ 🏆 <b>TOP 3:</b>`);
-    top3.forEach((s, i) => {
+    const topStr = top3.map((s, i) => {
       const dir = getDirectionStyle(s.direction);
       const score = Math.max(convertEdgeScoreTo100(s.edgeScore ?? 0), s.entryScore ?? 0);
-      lines.push(`│    ${i + 1}. ${dir.icon} ${s.symbol} (${score}đ)`);
-    });
+      return `${dir.color}${s.symbol}(<b>${score}</b>)`;
+    }).join("  ");
+    lines.push(`   🏆 ${topStr}`);
   }
-  lines.push(`└────────────────────────────┘`);
   lines.push(``);
   
-  // ═══════════════════════════════════════
-  // TỔNG QUAN THỊ TRƯỜNG
-  // ═══════════════════════════════════════
+  // Summary
   if (analysis.summary) {
-    lines.push(`📌 <b>TỔNG QUAN THỊ TRƯỜNG</b>`);
-    lines.push(`┌────────────────────────────┐`);
-    const summaryLines = analysis.summary.match(/.{1,30}/g) || [analysis.summary];
-    summaryLines.slice(0, 4).forEach(line => {
-      lines.push(`│ <i>${escapeHtml(line)}</i>`);
-    });
-    lines.push(`└────────────────────────────┘`);
+    lines.push(`<b>📌 MARKET</b>`);
+    lines.push(`   <i>${escapeHtml(analysis.summary.substring(0, 80))}${analysis.summary.length > 80 ? '...' : ''}</i>`);
     lines.push(``);
   }
   
   // ═══════════════════════════════════════
-  // DANH SÁCH LONG
+  // LONG SIGNALS
   // ═══════════════════════════════════════
   if (longSignals.length > 0) {
-    lines.push(`🟢🟢🟢 <b>DANH SÁCH LONG (${longSignals.length})</b> 🟢🟢🟢`);
+    lines.push(`🟢 <b>LONG POSITIONS</b> (${longSignals.length})`);
+    lines.push(`═══════════════════════════════`);
     longSignals.forEach((signal, index) => {
       lines.push(formatSignalCard(signal, index + 1));
     });
@@ -262,34 +226,32 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
   }
   
   // ═══════════════════════════════════════
-  // DANH SÁCH SHORT
+  // SHORT SIGNALS
   // ═══════════════════════════════════════
   if (shortSignals.length > 0) {
-    lines.push(`🔴🔴🔴 <b>DANH SÁCH SHORT (${shortSignals.length})</b> 🔴🔴🔴`);
+    lines.push(`🔴 <b>SHORT POSITIONS</b> (${shortSignals.length})`);
+    lines.push(`═══════════════════════════════`);
     shortSignals.forEach((signal, index) => {
       lines.push(formatSignalCard(signal, index + 1));
     });
     lines.push(``);
   }
   
-  // Không có tín hiệu
+  // No signals
   if (total === 0) {
-    lines.push(`╔══════════════════════════╗`);
-    lines.push(`║ ⚠️ <b>KHÔNG CÓ TÍN HIỆU</b>     ║`);
-    lines.push(`║                          ║`);
-    lines.push(`║ Thị trường đang sideway  ║`);
-    lines.push(`║ hoặc chưa có setup tốt.  ║`);
-    lines.push(`╚══════════════════════════╝`);
+    lines.push(`┌─────────────────────────────┐`);
+    lines.push(`│  ⚠️ <b>NO SIGNALS</b>              │`);
+    lines.push(`│  Market is sideways or      │`);
+    lines.push(`│  no good setup available.   │`);
+    lines.push(`└─────────────────────────────┘`);
     lines.push(``);
   }
   
   // ═══════════════════════════════════════
   // FOOTER
   // ═══════════════════════════════════════
-  lines.push(`┌────────────────────────────┐`);
-  lines.push(`│ 🔖 ID: <code>${analysis.mailId?.substring(0, 12) || '-'}...</code>`);
-  lines.push(`│ ⚠️ <i>Chỉ tham khảo. Luôn DYOR!</i>`);
-  lines.push(`└────────────────────────────┘`);
+  lines.push(`───────────────────────────────`);
+  lines.push(`🔖 <code>${analysis.mailId?.substring(0, 12) || '-'}</code>  ⚠️ <i>DYOR</i>`);
   
   return lines.join("\n");
 };
@@ -304,7 +266,7 @@ export const formatShortNotification = (analysis: AnalysisResult): string => {
   const total = longSignals.length + shortSignals.length;
   
   if (total === 0) {
-    return `📊 <b>Báo cáo mới</b>\n⚠️ Không có tín hiệu LONG/SHORT`;
+    return `📊 <b>New Report</b>\n⚠️ No LONG/SHORT signals`;
   }
   
   const sortByScore = (a: TradingSignal, b: TradingSignal) => {
@@ -314,9 +276,9 @@ export const formatShortNotification = (analysis: AnalysisResult): string => {
   };
   
   const top3 = [...longSignals, ...shortSignals].sort(sortByScore).slice(0, 3);
-  const topList = top3.map(s => `${getDirectionStyle(s.direction).icon}${s.symbol}`).join(" ");
+  const topList = top3.map(s => `${getDirectionStyle(s.direction).color}${s.symbol}`).join(" ");
   
-  return `📊 <b>BÁO CÁO MỚI</b> - ${total} tín hiệu\n\n🟢 LONG: ${longSignals.length}  |  🔴 SHORT: ${shortSignals.length}\n\n🏆 Top: ${topList}`;
+  return `📊 <b>NEW SIGNALS</b> │ ${total} total\n\n🟢 ${longSignals.length} LONG  │  🔴 ${shortSignals.length} SHORT\n\n🏆 ${topList}`;
 };
 
 // ════════════════════════════════════════════
@@ -326,24 +288,19 @@ export const formatShortNotification = (analysis: AnalysisResult): string => {
 export const formatSignalCompact = (signal: TradingSignal): string => {
   const dir = getDirectionStyle(signal.direction);
   const score = Math.max(convertEdgeScoreTo100(signal.edgeScore ?? 0), signal.entryScore ?? 0);
-  const scoreInfo = getScoreInfo(score);
+  const scoreInfo = getScoreLabel(score);
   
   const lines: string[] = [];
-  lines.push(`${dir.icon} <b>${signal.symbol}</b> ${dir.label}`);
-  lines.push(`   📊 ${score}/100 ${scoreInfo.stars}`);
+  lines.push(`${dir.color} <b>${signal.symbol}</b> ${dir.icon}${dir.label}`);
+  lines.push(`   ${scoreInfo.icon} <code>${getScoreBar(score)}</code> ${score}`);
   
   if (signal.price && signal.price !== "-") {
-    lines.push(`   💰 Giá: <code>${formatPrice(signal.price)}</code>`);
+    lines.push(`   💰 <code>${formatPrice(signal.price)}</code>`);
   }
   
   const entry = signal.trigger || signal.entry;
   if (entry && entry !== "-") {
-    lines.push(`   📥 Entry: <code>${formatPrice(entry)}</code>`);
-  }
-  
-  const description = generateDescription(signal);
-  if (description) {
-    lines.push(`   💡 <i>${escapeHtml(description.substring(0, 40))}...</i>`);
+    lines.push(`   📥 <code>${formatPrice(entry)}</code>`);
   }
   
   return lines.join("\n");
