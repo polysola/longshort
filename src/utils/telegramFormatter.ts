@@ -1,5 +1,5 @@
 /**
- * TELEGRAM FORMATTER - High-tech Minimalist Design
+ * TELEGRAM FORMATTER - High-tech Professional Design
  * HTML format (parse_mode: HTML)
  */
 
@@ -32,13 +32,13 @@ const getScoreBar = (score: number): string => {
   return "█".repeat(filled) + "░".repeat(empty);
 };
 
-const getScoreLabel = (score: number): { label: string; icon: string } => {
-  if (score >= 90) return { label: "XUẤT SẮC", icon: "🔥" };
-  if (score >= 80) return { label: "RẤT TỐT", icon: "⚡" };
-  if (score >= 70) return { label: "TỐT", icon: "✨" };
-  if (score >= 55) return { label: "KHÁ", icon: "👍" };
-  if (score >= 40) return { label: "TB", icon: "📊" };
-  return { label: "YẾU", icon: "⬇️" };
+const getScoreLabel = (score: number): string => {
+  if (score >= 90) return "🔥 XUẤT SẮC";
+  if (score >= 80) return "⚡ RẤT TỐT";
+  if (score >= 70) return "✨ TỐT";
+  if (score >= 55) return "👍 KHÁ";
+  if (score >= 40) return "📊 TB";
+  return "⬇️ YẾU";
 };
 
 const formatPrice = (price: string | number | undefined): string => {
@@ -57,20 +57,20 @@ const generateDescription = (signal: TradingSignal): string => {
   const parts: string[] = [];
   
   const scenarioDesc: { [key: string]: string } = {
-    "A": "Perfect setup, strong trend",
-    "B": "Good setup, clear breakout", 
-    "C": "Compression pattern",
-    "D": "Need confirmation",
-    "F1": "Pullback to support",
-    "F2": "Pullback to MA",
-    "F3": "Pullback to Fibo",
-    "G": "High risk setup"
+    "A": "Perfect setup",
+    "B": "Clear breakout", 
+    "C": "Compression",
+    "D": "Need confirm",
+    "F1": "Pullback support",
+    "F2": "Pullback MA",
+    "F3": "Pullback Fibo",
+    "G": "High risk"
   };
   
   const entryDesc: { [key: string]: string } = {
-    "stop_breakout": "Enter on breakout",
-    "limit_pullback": "Wait for pullback",
-    "market_now": "Enter at market"
+    "stop_breakout": "Breakout entry",
+    "limit_pullback": "Pullback entry",
+    "market_now": "Market entry"
   };
   
   if (signal.scenario) {
@@ -85,67 +85,69 @@ const generateDescription = (signal: TradingSignal): string => {
     parts.push(signal.reason);
   }
   
-  return parts.join(" • ") || "No description";
+  return parts.join(" • ") || "—";
 };
 
 // ════════════════════════════════════════════
-// FORMAT SIGNAL CARD - High-tech Design
+// FORMAT SIGNAL CARD - 2 SCORES RIÊNG BIỆT
 // ════════════════════════════════════════════
 
-const formatSignalCard = (signal: TradingSignal, index: number): string => {
+const formatSignalCard = (signal: TradingSignal): string => {
   const dir = getDirectionStyle(signal.direction);
   
+  // 2 điểm riêng biệt
   const edgeScore7 = signal.edgeScore ?? 0;
   const edgeScore100 = convertEdgeScoreTo100(edgeScore7);
-  const entryScore = signal.entryScore ?? edgeScore100;
-  const mainScore = Math.max(edgeScore100, entryScore);
-  const scoreInfo = getScoreLabel(mainScore);
+  const entryScore = signal.entryScore ?? 0;
   
   const lines: string[] = [];
   
-  // ═══════════════════════════════════════
   // HEADER
-  // ═══════════════════════════════════════
   lines.push(``);
   lines.push(`┌─────────────────────────────┐`);
-  lines.push(`│ ${dir.color} <b>${escapeHtml(signal.symbol)}</b>  ${dir.icon} <b>${dir.label}</b>  ⏱${signal.timeframe || "4h"}`);
+  lines.push(`│ ${dir.color} <b>${escapeHtml(signal.symbol)}</b>  ${dir.icon} <b>${dir.label}</b>  ⏱ ${signal.timeframe || "4h"}`);
   lines.push(`└─────────────────────────────┘`);
   
-  // Score bar
-  lines.push(`  ${scoreInfo.icon} <code>${getScoreBar(mainScore)}</code> <b>${mainScore}</b>/100`);
-  lines.push(`     ${scoreInfo.label}`);
+  // 2 SCORES RIÊNG BIỆT
   lines.push(``);
+  lines.push(`  📊 EdgeScore    <code>${getScoreBar(edgeScore100)}</code> <b>${edgeScore100}</b>`);
+  lines.push(`                  ${getScoreLabel(edgeScore100)}`);
+  lines.push(``);
+  if (entryScore > 0) {
+    lines.push(`  🎯 EntryScore   <code>${getScoreBar(entryScore)}</code> <b>${entryScore}</b>`);
+    lines.push(`                  ${getScoreLabel(entryScore)}`);
+    lines.push(``);
+  }
   
-  // Price info - compact
+  // PRICE INFO
   if (signal.price && signal.price !== "-") {
-    lines.push(`  💰 Price   <code>${formatPrice(signal.price)}</code>`);
+    lines.push(`  💰 Price        <code>${formatPrice(signal.price)}</code>`);
   }
   
   const entryPrice = signal.trigger || signal.entry;
   if (entryPrice && entryPrice !== "-") {
-    lines.push(`  📥 Entry   <code>${formatPrice(entryPrice)}</code>`);
+    lines.push(`  📥 Entry        <code>${formatPrice(entryPrice)}</code>`);
   }
   
   if (signal.stopLoss && signal.stopLoss !== "-") {
-    lines.push(`  🛑 SL      <code>${formatPrice(signal.stopLoss)}</code>`);
+    lines.push(`  🛑 SL           <code>${formatPrice(signal.stopLoss)}</code>`);
   }
   
   if (signal.takeProfits && signal.takeProfits.length > 0) {
     const validTPs = signal.takeProfits.filter(tp => tp && tp !== "-").slice(0, 3);
     if (validTPs.length > 0) {
-      const tpStr = validTPs.map(tp => `<code>${formatPrice(tp)}</code>`).join(" → ");
-      lines.push(`  🎯 TP      ${tpStr}`);
+      lines.push(`  🎯 TP           <code>${validTPs.map(tp => formatPrice(tp)).join("</code> → <code>")}</code>`);
     }
   }
   
   if (signal.rr && signal.rr !== "-") {
-    lines.push(`  📈 R:R     ${escapeHtml(signal.rr)}`);
+    lines.push(`  📈 R:R          <code>${escapeHtml(signal.rr)}</code>`);
   }
   
-  // Description
+  // DESCRIPTION
   lines.push(``);
   const desc = generateDescription(signal);
-  lines.push(`  💡 <i>${escapeHtml(desc.substring(0, 45))}${desc.length > 45 ? '...' : ''}</i>`);
+  lines.push(`  💡 <i>${escapeHtml(desc.substring(0, 50))}${desc.length > 50 ? '...' : ''}</i>`);
   
   return lines.join("\n");
 };
@@ -161,8 +163,8 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
   const total = longSignals.length + shortSignals.length;
   
   const sortByScore = (a: TradingSignal, b: TradingSignal) => {
-    const scoreA = Math.max(convertEdgeScoreTo100(a.edgeScore ?? 0), a.entryScore ?? 0);
-    const scoreB = Math.max(convertEdgeScoreTo100(b.edgeScore ?? 0), b.entryScore ?? 0);
+    const scoreA = a.entryScore ?? convertEdgeScoreTo100(a.edgeScore ?? 0);
+    const scoreB = b.entryScore ?? convertEdgeScoreTo100(b.edgeScore ?? 0);
     return scoreB - scoreA;
   };
   longSignals.sort(sortByScore);
@@ -170,9 +172,7 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
 
   const lines: string[] = [];
   
-  // ═══════════════════════════════════════
   // HEADER
-  // ═══════════════════════════════════════
   const now = new Date().toLocaleString('vi-VN', { 
     timeZone: 'Asia/Ho_Chi_Minh',
     hour: '2-digit',
@@ -187,9 +187,7 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
   lines.push(`╚═══════════════════════════════╝`);
   lines.push(``);
   
-  // ═══════════════════════════════════════
   // STATS
-  // ═══════════════════════════════════════
   lines.push(`<b>📈 OVERVIEW</b>`);
   lines.push(`   Total: <b>${total}</b> signals`);
   lines.push(`   🟢 LONG <b>${longSignals.length}</b>  │  🔴 SHORT <b>${shortSignals.length}</b>${stayOutCount > 0 ? `  │  ⚪ WAIT <b>${stayOutCount}</b>` : ''}`);
@@ -197,10 +195,10 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
   if (total > 0) {
     const allSignals = [...longSignals, ...shortSignals].sort(sortByScore);
     const top3 = allSignals.slice(0, 3);
-    const topStr = top3.map((s, i) => {
+    const topStr = top3.map(s => {
       const dir = getDirectionStyle(s.direction);
-      const score = Math.max(convertEdgeScoreTo100(s.edgeScore ?? 0), s.entryScore ?? 0);
-      return `${dir.color}${s.symbol}(<b>${score}</b>)`;
+      const score = s.entryScore ?? convertEdgeScoreTo100(s.edgeScore ?? 0);
+      return `${dir.color}${s.symbol}(<code>${score}</code>)`;
     }).join("  ");
     lines.push(`   🏆 ${topStr}`);
   }
@@ -209,30 +207,26 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
   // Summary
   if (analysis.summary) {
     lines.push(`<b>📌 MARKET</b>`);
-    lines.push(`   <i>${escapeHtml(analysis.summary.substring(0, 80))}${analysis.summary.length > 80 ? '...' : ''}</i>`);
+    lines.push(`   <i>${escapeHtml(analysis.summary.substring(0, 100))}${analysis.summary.length > 100 ? '...' : ''}</i>`);
     lines.push(``);
   }
   
-  // ═══════════════════════════════════════
   // LONG SIGNALS
-  // ═══════════════════════════════════════
   if (longSignals.length > 0) {
     lines.push(`🟢 <b>LONG POSITIONS</b> (${longSignals.length})`);
     lines.push(`═══════════════════════════════`);
-    longSignals.forEach((signal, index) => {
-      lines.push(formatSignalCard(signal, index + 1));
+    longSignals.forEach(signal => {
+      lines.push(formatSignalCard(signal));
     });
     lines.push(``);
   }
   
-  // ═══════════════════════════════════════
   // SHORT SIGNALS
-  // ═══════════════════════════════════════
   if (shortSignals.length > 0) {
     lines.push(`🔴 <b>SHORT POSITIONS</b> (${shortSignals.length})`);
     lines.push(`═══════════════════════════════`);
-    shortSignals.forEach((signal, index) => {
-      lines.push(formatSignalCard(signal, index + 1));
+    shortSignals.forEach(signal => {
+      lines.push(formatSignalCard(signal));
     });
     lines.push(``);
   }
@@ -241,15 +235,12 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
   if (total === 0) {
     lines.push(`┌─────────────────────────────┐`);
     lines.push(`│  ⚠️ <b>NO SIGNALS</b>              │`);
-    lines.push(`│  Market is sideways or      │`);
-    lines.push(`│  no good setup available.   │`);
+    lines.push(`│  Market sideways / No setup │`);
     lines.push(`└─────────────────────────────┘`);
     lines.push(``);
   }
   
-  // ═══════════════════════════════════════
   // FOOTER
-  // ═══════════════════════════════════════
   lines.push(`───────────────────────────────`);
   lines.push(`🔖 <code>${analysis.mailId?.substring(0, 12) || '-'}</code>  ⚠️ <i>DYOR</i>`);
   
@@ -270,8 +261,8 @@ export const formatShortNotification = (analysis: AnalysisResult): string => {
   }
   
   const sortByScore = (a: TradingSignal, b: TradingSignal) => {
-    const scoreA = Math.max(convertEdgeScoreTo100(a.edgeScore ?? 0), a.entryScore ?? 0);
-    const scoreB = Math.max(convertEdgeScoreTo100(b.edgeScore ?? 0), b.entryScore ?? 0);
+    const scoreA = a.entryScore ?? convertEdgeScoreTo100(a.edgeScore ?? 0);
+    const scoreB = b.entryScore ?? convertEdgeScoreTo100(b.edgeScore ?? 0);
     return scoreB - scoreA;
   };
   
@@ -287,20 +278,15 @@ export const formatShortNotification = (analysis: AnalysisResult): string => {
 
 export const formatSignalCompact = (signal: TradingSignal): string => {
   const dir = getDirectionStyle(signal.direction);
-  const score = Math.max(convertEdgeScoreTo100(signal.edgeScore ?? 0), signal.entryScore ?? 0);
-  const scoreInfo = getScoreLabel(score);
+  const edgeScore100 = convertEdgeScoreTo100(signal.edgeScore ?? 0);
+  const entryScore = signal.entryScore ?? 0;
   
   const lines: string[] = [];
   lines.push(`${dir.color} <b>${signal.symbol}</b> ${dir.icon}${dir.label}`);
-  lines.push(`   ${scoreInfo.icon} <code>${getScoreBar(score)}</code> ${score}`);
+  lines.push(`   📊 Edge: <code>${edgeScore100}</code>  🎯 Entry: <code>${entryScore}</code>`);
   
   if (signal.price && signal.price !== "-") {
     lines.push(`   💰 <code>${formatPrice(signal.price)}</code>`);
-  }
-  
-  const entry = signal.trigger || signal.entry;
-  if (entry && entry !== "-") {
-    lines.push(`   📥 <code>${formatPrice(entry)}</code>`);
   }
   
   return lines.join("\n");
