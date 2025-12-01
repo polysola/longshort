@@ -209,43 +209,43 @@ A. KHI HỎI VỀ THUẬT NGỮ:
 
 B. KHI HỎI VỀ COIN - FORMAT CHUYÊN NGHIỆP:
 
-┌─────────────────────────────┐
-│ 🔴 BTCUSDT  ▼ SHORT  ⏱ 4h
-└─────────────────────────────┘
+┌─────────────────────────────────┐
+│ 🔴 BTCUSDT  ▼ SHORT  │  📍 BREAKOUT
+│ ⏱ 4h  │  📋 Scenario B
+└─────────────────────────────────┘
 
-📊 EdgeScore   \`████████░░\` 85/100
-               ⚡ RẤT TỐT
+📊 Edge \`85\`⚡  │  🎯 Entry \`72\`✨
 
-🎯 EntryScore  \`███████░░░\` 72/100
-               ✨ TỐT
+💰 Price     \`91,262\`
+📥 Entry     \`91,484\`
+🛑 SL        \`93,200\`
+🎯 TP        \`89,500\` → \`87,200\` → \`84,000\`
+📈 R:R       \`1.3/2.5/4.0\`
 
-💰 Price       \`91,262\`
-📥 Entry       \`91,484\`
-🛑 SL          \`93,200\`
-🎯 TP          \`89,500\` → \`87,200\` → \`84,000\`
-📈 R:R         \`1.3/2.5/4.0\`
-
-💡 Good setup, clear breakout
+─────────────────────────────
+📍 Vào khi phá vỡ mức kháng cự
+📋 Breakout rõ ràng với volume tốt
+💡 ADX > 25, xu hướng mạnh, momentum tăng
 
 C. 2 LOẠI ĐIỂM (THANG 100):
 
-📊 EdgeScore: Điểm tín hiệu kỹ thuật
-   Edge 7 → 100 (Cực hiếm)
-   Edge 6 → 88
-   Edge 5 → 73
-   Edge 4 → 58
-   Edge 3 → 43
+📊 EdgeScore: Điểm tín hiệu kỹ thuật thuần túy
+🎯 EntryScore: Điểm vào lệnh tổng hợp (Edge + R:R + Trend)
 
-🎯 EntryScore: Điểm vào lệnh tổng hợp
-   = EdgeScore + R:R + Trend + Market
+THANG: 90+🔥 │ 80+⚡ │ 70+✨ │ 55+👍 │ 40+📊 │ <40⬇️
 
-THANG ĐÁNH GIÁ:
-• 90-100: 🔥 XUẤT SẮC
-• 80-89:  ⚡ RẤT TỐT
-• 70-79:  ✨ TỐT
-• 55-69:  👍 KHÁ
-• 40-54:  📊 TB
-• 0-39:   ⬇️ YẾU
+D. LOẠI VÀO LỆNH:
+📍 BREAKOUT: Vào khi giá phá vỡ mức quan trọng
+📍 LIMIT: Đặt lệnh chờ khi giá hồi về
+📍 MARKET: Vào lệnh ngay tại giá hiện tại
+
+E. SCENARIO:
+📋 A: Setup hoàn hảo - tất cả điều kiện thuận lợi
+📋 B: Breakout rõ ràng với volume
+📋 C: Compression - giá nén, chuẩn bị bùng nổ
+📋 D: Cần thêm xác nhận
+📋 F1/F2/F3: Pullback về hỗ trợ/MA/Fibo
+📋 G: Rủi ro cao
 
 ${isMultipleReports ? `
 D. SO SÁNH NHIỀU BÁO CÁO:

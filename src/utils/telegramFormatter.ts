@@ -26,19 +26,36 @@ const getDirectionStyle = (direction: string): { icon: string; label: string; co
   }
 };
 
-const getScoreBar = (score: number): string => {
-  const filled = Math.round(score / 10);
-  const empty = 10 - filled;
-  return "█".repeat(filled) + "░".repeat(empty);
+const getScoreEmoji = (score: number): string => {
+  if (score >= 90) return "🔥";
+  if (score >= 80) return "⚡";
+  if (score >= 70) return "✨";
+  if (score >= 55) return "👍";
+  if (score >= 40) return "📊";
+  return "⬇️";
 };
 
-const getScoreLabel = (score: number): string => {
-  if (score >= 90) return "🔥 XUẤT SẮC";
-  if (score >= 80) return "⚡ RẤT TỐT";
-  if (score >= 70) return "✨ TỐT";
-  if (score >= 55) return "👍 KHÁ";
-  if (score >= 40) return "📊 TB";
-  return "⬇️ YẾU";
+const getEntryTypeLabel = (entryType: string | undefined): { short: string; full: string } => {
+  switch (entryType) {
+    case "stop_breakout": return { short: "BREAKOUT", full: "Vào khi phá vỡ mức kháng cự/hỗ trợ" };
+    case "limit_pullback": return { short: "LIMIT", full: "Đặt lệnh chờ khi giá hồi về" };
+    case "market_now": return { short: "MARKET", full: "Vào lệnh ngay tại giá hiện tại" };
+    default: return { short: "—", full: "" };
+  }
+};
+
+const getScenarioDesc = (scenario: string | undefined): string => {
+  switch (scenario) {
+    case "A": return "Setup hoàn hảo - Tất cả điều kiện đều thuận lợi";
+    case "B": return "Breakout rõ ràng - Phá vỡ mức quan trọng với volume";
+    case "C": return "Compression - Giá nén chặt, chuẩn bị bùng nổ";
+    case "D": return "Cần xác nhận - Chờ thêm tín hiệu để vào lệnh";
+    case "F1": return "Pullback về vùng hỗ trợ - Cơ hội mua tốt";
+    case "F2": return "Pullback về MA - Test đường trung bình động";
+    case "F3": return "Pullback về Fibonacci - Hồi về mức Fibo quan trọng";
+    case "G": return "Rủi ro cao - Cần quản lý vốn chặt chẽ";
+    default: return "";
+  }
 };
 
 const formatPrice = (price: string | number | undefined): string => {
@@ -52,102 +69,77 @@ const formatPrice = (price: string | number | undefined): string => {
   return num.toFixed(6);
 };
 
-// Tạo mô tả chi tiết
-const generateDescription = (signal: TradingSignal): string => {
-  const parts: string[] = [];
-  
-  const scenarioDesc: { [key: string]: string } = {
-    "A": "Perfect setup",
-    "B": "Clear breakout", 
-    "C": "Compression",
-    "D": "Need confirm",
-    "F1": "Pullback support",
-    "F2": "Pullback MA",
-    "F3": "Pullback Fibo",
-    "G": "High risk"
-  };
-  
-  const entryDesc: { [key: string]: string } = {
-    "stop_breakout": "Breakout entry",
-    "limit_pullback": "Pullback entry",
-    "market_now": "Market entry"
-  };
-  
-  if (signal.scenario) {
-    const desc = scenarioDesc[signal.scenario];
-    if (desc) parts.push(desc);
-  }
-  if (signal.entryType) {
-    const desc = entryDesc[signal.entryType];
-    if (desc) parts.push(desc);
-  }
-  if (signal.reason) {
-    parts.push(signal.reason);
-  }
-  
-  return parts.join(" • ") || "—";
-};
-
 // ════════════════════════════════════════════
-// FORMAT SIGNAL CARD - 2 SCORES RIÊNG BIỆT
+// FORMAT SIGNAL CARD
 // ════════════════════════════════════════════
 
 const formatSignalCard = (signal: TradingSignal): string => {
   const dir = getDirectionStyle(signal.direction);
+  const entryTypeInfo = getEntryTypeLabel(signal.entryType);
   
-  // 2 điểm riêng biệt
+  // 2 điểm
   const edgeScore7 = signal.edgeScore ?? 0;
   const edgeScore100 = convertEdgeScoreTo100(edgeScore7);
   const entryScore = signal.entryScore ?? 0;
   
   const lines: string[] = [];
   
-  // HEADER
+  // HEADER với Entry Type
   lines.push(``);
-  lines.push(`┌─────────────────────────────┐`);
-  lines.push(`│ ${dir.color} <b>${escapeHtml(signal.symbol)}</b>  ${dir.icon} <b>${dir.label}</b>  ⏱ ${signal.timeframe || "4h"}`);
-  lines.push(`└─────────────────────────────┘`);
+  lines.push(`┌─────────────────────────────────┐`);
+  lines.push(`│ ${dir.color} <b>${escapeHtml(signal.symbol)}</b>  ${dir.icon} <b>${dir.label}</b>  │  📍 <b>${entryTypeInfo.short}</b>`);
+  lines.push(`│ ⏱ ${signal.timeframe || "4h"}  │  ${signal.scenario ? `📋 Scenario ${signal.scenario}` : ''}`);
+  lines.push(`└─────────────────────────────────┘`);
   
-  // 2 SCORES RIÊNG BIỆT
+  // 2 SCORES CHUNG 1 HÀNG
   lines.push(``);
-  lines.push(`  📊 EdgeScore    <code>${getScoreBar(edgeScore100)}</code> <b>${edgeScore100}</b>`);
-  lines.push(`                  ${getScoreLabel(edgeScore100)}`);
-  lines.push(``);
-  if (entryScore > 0) {
-    lines.push(`  🎯 EntryScore   <code>${getScoreBar(entryScore)}</code> <b>${entryScore}</b>`);
-    lines.push(`                  ${getScoreLabel(entryScore)}`);
-    lines.push(``);
-  }
+  lines.push(`  📊 Edge <b>${edgeScore100}</b>${getScoreEmoji(edgeScore100)}  │  🎯 Entry <b>${entryScore}</b>${getScoreEmoji(entryScore)}`);
   
   // PRICE INFO
+  lines.push(``);
   if (signal.price && signal.price !== "-") {
-    lines.push(`  💰 Price        <code>${formatPrice(signal.price)}</code>`);
+    lines.push(`  💰 Price     <code>${formatPrice(signal.price)}</code>`);
   }
   
   const entryPrice = signal.trigger || signal.entry;
   if (entryPrice && entryPrice !== "-") {
-    lines.push(`  📥 Entry        <code>${formatPrice(entryPrice)}</code>`);
+    lines.push(`  📥 Entry     <code>${formatPrice(entryPrice)}</code>`);
   }
   
   if (signal.stopLoss && signal.stopLoss !== "-") {
-    lines.push(`  🛑 SL           <code>${formatPrice(signal.stopLoss)}</code>`);
+    lines.push(`  🛑 SL        <code>${formatPrice(signal.stopLoss)}</code>`);
   }
   
   if (signal.takeProfits && signal.takeProfits.length > 0) {
     const validTPs = signal.takeProfits.filter(tp => tp && tp !== "-").slice(0, 3);
     if (validTPs.length > 0) {
-      lines.push(`  🎯 TP           <code>${validTPs.map(tp => formatPrice(tp)).join("</code> → <code>")}</code>`);
+      lines.push(`  🎯 TP        <code>${validTPs.map(tp => formatPrice(tp)).join("</code> → <code>")}</code>`);
     }
   }
   
   if (signal.rr && signal.rr !== "-") {
-    lines.push(`  📈 R:R          <code>${escapeHtml(signal.rr)}</code>`);
+    lines.push(`  📈 R:R       <code>${escapeHtml(signal.rr)}</code>`);
   }
   
-  // DESCRIPTION
+  // MÔ TẢ CHI TIẾT
   lines.push(``);
-  const desc = generateDescription(signal);
-  lines.push(`  💡 <i>${escapeHtml(desc.substring(0, 50))}${desc.length > 50 ? '...' : ''}</i>`);
+  lines.push(`  ─────────────────────────────`);
+  
+  // Entry Type description
+  if (entryTypeInfo.full) {
+    lines.push(`  📍 <i>${entryTypeInfo.full}</i>`);
+  }
+  
+  // Scenario description
+  const scenarioDesc = getScenarioDesc(signal.scenario);
+  if (scenarioDesc) {
+    lines.push(`  📋 <i>${scenarioDesc}</i>`);
+  }
+  
+  // Original reason
+  if (signal.reason) {
+    lines.push(`  💡 <i>${escapeHtml(signal.reason.substring(0, 80))}${signal.reason.length > 80 ? '...' : ''}</i>`);
+  }
   
   return lines.join("\n");
 };
@@ -181,10 +173,10 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
     month: '2-digit'
   });
   
-  lines.push(`╔═══════════════════════════════╗`);
-  lines.push(`║   📊 <b>TRADING SIGNALS</b>         ║`);
-  lines.push(`║   ⏰ ${now}              ║`);
-  lines.push(`╚═══════════════════════════════╝`);
+  lines.push(`╔═══════════════════════════════════╗`);
+  lines.push(`║   📊 <b>TRADING SIGNALS</b>             ║`);
+  lines.push(`║   ⏰ ${now}                  ║`);
+  lines.push(`╚═══════════════════════════════════╝`);
   lines.push(``);
   
   // STATS
@@ -214,7 +206,7 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
   // LONG SIGNALS
   if (longSignals.length > 0) {
     lines.push(`🟢 <b>LONG POSITIONS</b> (${longSignals.length})`);
-    lines.push(`═══════════════════════════════`);
+    lines.push(`═══════════════════════════════════`);
     longSignals.forEach(signal => {
       lines.push(formatSignalCard(signal));
     });
@@ -224,7 +216,7 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
   // SHORT SIGNALS
   if (shortSignals.length > 0) {
     lines.push(`🔴 <b>SHORT POSITIONS</b> (${shortSignals.length})`);
-    lines.push(`═══════════════════════════════`);
+    lines.push(`═══════════════════════════════════`);
     shortSignals.forEach(signal => {
       lines.push(formatSignalCard(signal));
     });
@@ -233,16 +225,16 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
   
   // No signals
   if (total === 0) {
-    lines.push(`┌─────────────────────────────┐`);
-    lines.push(`│  ⚠️ <b>NO SIGNALS</b>              │`);
-    lines.push(`│  Market sideways / No setup │`);
-    lines.push(`└─────────────────────────────┘`);
+    lines.push(`┌─────────────────────────────────┐`);
+    lines.push(`│  ⚠️ <b>NO SIGNALS</b>                  │`);
+    lines.push(`│  Market sideways / No setup     │`);
+    lines.push(`└─────────────────────────────────┘`);
     lines.push(``);
   }
   
   // FOOTER
-  lines.push(`───────────────────────────────`);
-  lines.push(`🔖 <code>${analysis.mailId?.substring(0, 12) || '-'}</code>  ⚠️ <i>DYOR</i>`);
+  lines.push(`───────────────────────────────────`);
+  lines.push(`🔖 <code>${analysis.mailId?.substring(0, 12) || '-'}</code>  ⚠️ <i>DYOR - Not financial advice</i>`);
   
   return lines.join("\n");
 };
@@ -280,10 +272,11 @@ export const formatSignalCompact = (signal: TradingSignal): string => {
   const dir = getDirectionStyle(signal.direction);
   const edgeScore100 = convertEdgeScoreTo100(signal.edgeScore ?? 0);
   const entryScore = signal.entryScore ?? 0;
+  const entryTypeInfo = getEntryTypeLabel(signal.entryType);
   
   const lines: string[] = [];
-  lines.push(`${dir.color} <b>${signal.symbol}</b> ${dir.icon}${dir.label}`);
-  lines.push(`   📊 Edge: <code>${edgeScore100}</code>  🎯 Entry: <code>${entryScore}</code>`);
+  lines.push(`${dir.color} <b>${signal.symbol}</b> ${dir.icon}${dir.label} │ 📍${entryTypeInfo.short}`);
+  lines.push(`   📊 Edge <code>${edgeScore100}</code>  🎯 Entry <code>${entryScore}</code>`);
   
   if (signal.price && signal.price !== "-") {
     lines.push(`   💰 <code>${formatPrice(signal.price)}</code>`);
