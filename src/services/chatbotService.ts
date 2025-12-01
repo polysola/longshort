@@ -206,53 +206,84 @@ A. KHI HỎI VỀ THUẬT NGỮ:
    
    R:R ≥ 2.0 là tốt."
 
-B. KHI HỎI VỀ COIN:
-   Trích xuất CHÍNH XÁC, format gọn:
-   
-   🔴 *BTCUSDT* SHORT
-   
-   📊 Score: \`85\`/100 ⭐⭐⭐
-   📥 Entry: \`91,484\`
-   🛑 SL: \`93,200\`
-   🎯 TP: \`89,500\` → \`87,200\` → \`84,000\`
-   📈 R:R: 2.5
-   ⏱ 4h
-   
-   💡 _Downtrend mạnh, ADX > 25, compression breakout_
+B. KHI HỎI VỀ COIN - FORMAT CARD ĐẸP:
 
-C. HỆ THỐNG ĐIỂM (0-100):
-${ENTRY_SCORE_RULES}
+╔══════════════════════════╗
+║ 📈 *BTCUSDT*
+║ 🔴 *SHORT* │ ⏱ 4h
+╠══════════════════════════╣
+║ 🔥 *ĐIỂM:* \`85\`/100
+║    ★★★★☆ RẤT TỐT
+╠══════════════════════════╣
+║ 💰 *Giá hiện tại:*
+║    \`91,262\` USDT
+╠══════════════════════════╣
+║ 📥 *Entry:* \`91,484\`
+║ 🛑 *SL:* \`93,200\`
+║ 🎯 *TP:*
+║    TP1: \`89,500\`
+║    TP2: \`87,200\`
+║    TP3: \`84,000\`
+║ 📈 *R:R:* 1.3/2.5/4.0
+╠══════════════════════════╣
+║ 💡 *Phân tích:*
+║    _Setup tốt, breakout rõ ràng._
+║    _Vào khi phá vỡ. Downtrend_
+║    _mạnh, ADX > 25._
+╚══════════════════════════╝
+
+C. HỆ THỐNG CHẤM ĐIỂM (THANG 100):
+
+CÁCH TÍNH ĐIỂM:
+• EdgeScore gốc (0-7) → chuyển sang thang 100:
+  - Edge 7 = 100 điểm (Cực hiếm)
+  - Edge 6 = 88 điểm
+  - Edge 5 = 73 điểm
+  - Edge 4 = 58 điểm
+  - Edge 3 = 43 điểm
+  - Edge 2 = 28 điểm
+  - Edge 1 = 13 điểm
+
+THANG ĐÁNH GIÁ:
+• 90-100: ★★★★★ XUẤT SẮC 🔥 (Cực hiếm < 1%)
+• 80-89:  ★★★★☆ RẤT TỐT ⭐
+• 70-79:  ★★★☆☆ TỐT ✨
+• 55-69:  ★★☆☆☆ KHÁ 👍
+• 40-54:  ★☆☆☆☆ TRUNG BÌNH ⚠️
+• 0-39:   ☆☆☆☆☆ YẾU ❌
 
 ${isMultipleReports ? `
 D. SO SÁNH NHIỀU BÁO CÁO:
-   So sánh thay đổi, nêu xu hướng.
-   
-   📊 *SO SÁNH BTCUSDT*
-   
-   📅 *19:50* - 🔴 SHORT
-      Entry: \`91,484\` | Score: 85
-   
-   📅 *18:50* - 🔴 SHORT
-      Entry: \`92,100\` | Score: 78
-   
-   📈 *Xu hướng:* Giữ SHORT, Entry giảm 616, Score tăng
+
+╔══════════════════════════╗
+║ 📊 *SO SÁNH BTCUSDT*
+╠══════════════════════════╣
+║ 📅 *19:50* - 🔴 SHORT
+║    Entry: \`91,484\`
+║    Score: 85 ★★★★☆
+╠══════════════════════════╣
+║ 📅 *18:50* - 🔴 SHORT
+║    Entry: \`92,100\`
+║    Score: 78 ★★★☆☆
+╠══════════════════════════╣
+║ 📈 *XU HƯỚNG:*
+║    • Giữ SHORT
+║    • Entry giảm 616 USDT
+║    • Score tăng 78 → 85
+╚══════════════════════════╝
 ` : ''}
 
-═══════════════════════════════════════════════════════════
 DỮ LIỆU BÁO CÁO:
-═══════════════════════════════════════════════════════════
 ${contextData}
 
-═══════════════════════════════════════════════════════════
 FORMAT TELEGRAM MARKDOWN:
-═══════════════════════════════════════════════════════════
 • *in đậm* (1 dấu sao)
 • _in nghiêng_ (dấu gạch dưới)
 • \`code\` (backtick) cho số liệu
-• ━━━ cho đường kẻ
-• Emoji: 📊💰🎯🛑📥📈📉🟢🔴⚠️✅❌🔥⭐💡
+• ╔╠╚║ cho box
+• Emoji: 📊💰🎯🛑📥📈📉🟢🔴⚠️✅❌🔥⭐💡★☆
 
-HÃY TRẢ LỜI BẰNG TIẾNG VIỆT!`;
+LUÔN FORMAT CARD ĐẸP NHƯ MẪU TRÊN!`;
 
     const contents = [
       { role: "user", parts: [{ text: systemPrompt }] },
