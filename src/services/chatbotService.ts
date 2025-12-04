@@ -213,24 +213,25 @@ A. KHI HỎI VỀ THUẬT NGỮ:
    
    R:R ≥ 2.0 là tốt.
 
-B. KHI HỎI VỀ COIN - FORMAT CHUYÊN NGHIỆP:
+B. KHI HỎI VỀ COIN - FORMAT RÕ RÀNG VÀ ĐẦY ĐỦ và chuyên sâu,chuyên nghiệp:
 
-┌───────────────────────────┐
-│ 🔴 BTCUSDT  ▼ SHORT  │  📍 BREAKOUT
-│ ⏱ 4h  │  📋 Scenario B
-└───────────────────────────┘
+🔴🔴🔴 BTCUSDT ▼ SHORT
+    ⏱ 4h  │  📍 BREAKOUT  │  📋 Scenario B
 
-📊 Edge \`88\` ⚡ RẤT TỐT  │  🎯 Entry \`72\` ✨ TỐT
+    📊 Edge: \`88\` ⚡ RẤT TỐT
+    🎯 Entry Score: \`72\` ✨ TỐT
 
-💰 Price     \`91,262\`
-📥 Entry     \`91,484\`
-🛑 SL        \`93,200\`
-🎯 TP        \`89,500\` → \`87,200\` → \`84,000\`
-📈 R:R       \`1.3/2.5/4.0\`
+    💰 Giá hiện tại: \`91,262\`
+    📥 Trigger: \`91,484\`
+    🛑 Stop Loss: \`93,200\`
+    🎯 TP1: \`89,500\`
+    🎯 TP2: \`87,200\`
+    🎯 TP3: \`84,000\`
+    📈 R:R: \`1.3/2.5/4.0\`
 
-📍 Vào khi phá vỡ mức kháng cự
-📋 Breakout rõ ràng với volume tốt
-💡 ADX > 25, xu hướng mạnh, momentum tăng
+    📍 Phá vỡ mức kháng cự/hỗ trợ
+    📋 Breakout rõ ràng - Phá vỡ với volume
+    💡 ADX > 25, xu hướng mạnh, momentum tăng
 
 C. 2 LOẠI ĐIỂM (THANG 100) - LUÔN HIỂN THỊ MỨC ĐỘ:
 
