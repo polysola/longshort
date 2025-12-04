@@ -4,7 +4,7 @@
  */
 
 import { AnalysisResult, TradingSignal } from "../types/mail";
-import { convertEdgeScoreTo100 } from "../config/scoringRules";
+import { convertEdgeScoreTo100, getScoreLevel, getScoreEmoji } from "../config/scoringRules";
 
 // ════════════════════════════════════════════
 // HELPER FUNCTIONS
@@ -26,15 +26,6 @@ const getDirectionStyle = (direction: string): { icon: string; label: string; co
   }
 };
 
-const getScoreEmoji = (score: number): string => {
-  if (score >= 90) return "🔥";
-  if (score >= 80) return "⚡";
-  if (score >= 70) return "✨";
-  if (score >= 55) return "👍";
-  if (score >= 40) return "📊";
-  return "⬇️";
-};
-
 const getEntryTypeLabel = (entryType: string | undefined): { short: string; full: string } => {
   switch (entryType) {
     case "stop_breakout": return { short: "BREAKOUT", full: "Vào khi phá vỡ mức kháng cự/hỗ trợ" };
@@ -46,14 +37,14 @@ const getEntryTypeLabel = (entryType: string | undefined): { short: string; full
 
 const getScenarioDesc = (scenario: string | undefined): string => {
   switch (scenario) {
-    case "A": return "Setup hoàn hảo - Tất cả điều kiện đều thuận lợi";
-    case "B": return "Breakout rõ ràng - Phá vỡ mức quan trọng với volume";
-    case "C": return "Compression - Giá nén chặt, chuẩn bị bùng nổ";
-    case "D": return "Cần xác nhận - Chờ thêm tín hiệu để vào lệnh";
-    case "F1": return "Pullback về vùng hỗ trợ - Cơ hội mua tốt";
-    case "F2": return "Pullback về MA - Test đường trung bình động";
-    case "F3": return "Pullback về Fibonacci - Hồi về mức Fibo quan trọng";
-    case "G": return "Rủi ro cao - Cần quản lý vốn chặt chẽ";
+    case "A": return "Setup hoàn hảo - Tất cả điều kiện thuận lợi";
+    case "B": return "Breakout rõ ràng với volume";
+    case "C": return "Compression - Giá nén, chuẩn bị bùng nổ";
+    case "D": return "Cần xác nhận - Chờ thêm tín hiệu";
+    case "F1": return "Pullback về vùng hỗ trợ";
+    case "F2": return "Pullback về MA";
+    case "F3": return "Pullback về Fibonacci";
+    case "G": return "Rủi ro cao - Quản lý vốn chặt chẽ";
     default: return "";
   }
 };
@@ -69,76 +60,95 @@ const formatPrice = (price: string | number | undefined): string => {
   return num.toFixed(6);
 };
 
+/**
+ * Format điểm với mức độ ngắn gọn
+ * VD: "88⚡RẤT TỐT" hoặc "72✨TỐT"
+ */
+const formatScoreCompact = (score: number): string => {
+  const level = getScoreLevel(score);
+  return `${score}${level.emoji}${level.labelVi}`;
+};
+
+/**
+ * Format điểm với emoji only (cho không gian hẹp)
+ */
+const formatScoreWithEmoji = (score: number): string => {
+  return `${score}${getScoreEmoji(score)}`;
+};
+
 // ════════════════════════════════════════════
-// FORMAT SIGNAL CARD
+// FORMAT SIGNAL CARD - Gọn gàng hơn
 // ════════════════════════════════════════════
 
 const formatSignalCard = (signal: TradingSignal): string => {
   const dir = getDirectionStyle(signal.direction);
   const entryTypeInfo = getEntryTypeLabel(signal.entryType);
   
-  // 2 điểm
+  // 2 điểm - đều thang 100
   const edgeScore7 = signal.edgeScore ?? 0;
   const edgeScore100 = convertEdgeScoreTo100(edgeScore7);
   const entryScore = signal.entryScore ?? 0;
   
+  // Lấy mức độ
+  const edgeLevel = getScoreLevel(edgeScore100);
+  const entryLevel = getScoreLevel(entryScore);
+  
   const lines: string[] = [];
   
-  // HEADER với Entry Type
+  // HEADER gọn hơn
   lines.push(``);
-  lines.push(`┌─────────────────────────────────┐`);
+  lines.push(`┌───────────────────────┐`);
   lines.push(`│ ${dir.color} <b>${escapeHtml(signal.symbol)}</b>  ${dir.icon} <b>${dir.label}</b>  │  📍 <b>${entryTypeInfo.short}</b>`);
-  lines.push(`│ ⏱ ${signal.timeframe || "4h"}  │  ${signal.scenario ? `📋 Scenario ${signal.scenario}` : ''}`);
-  lines.push(`└─────────────────────────────────┘`);
+  lines.push(`│ ⏱ ${signal.timeframe || "4h"}${signal.scenario ? `  │  📋 ${signal.scenario}` : ''}`);
+  lines.push(`└───────────────────────┘`);
   
-  // 2 SCORES CHUNG 1 HÀNG
+  // 2 SCORES với MỨC ĐỘ
   lines.push(``);
-  lines.push(`  📊 Edge <b>${edgeScore100}</b>${getScoreEmoji(edgeScore100)}  │  🎯 Entry <b>${entryScore}</b>${getScoreEmoji(entryScore)}`);
+  lines.push(`📊 Edge <b>${edgeScore100}</b>${edgeLevel.emoji} <i>${edgeLevel.labelVi}</i>  │  🎯 Entry <b>${entryScore}</b>${entryLevel.emoji} <i>${entryLevel.labelVi}</i>`);
   
   // PRICE INFO
   lines.push(``);
   if (signal.price && signal.price !== "-") {
-    lines.push(`  💰 Price     <code>${formatPrice(signal.price)}</code>`);
+    lines.push(`💰 Price     <code>${formatPrice(signal.price)}</code>`);
   }
   
   const entryPrice = signal.trigger || signal.entry;
   if (entryPrice && entryPrice !== "-") {
-    lines.push(`  📥 Entry     <code>${formatPrice(entryPrice)}</code>`);
+    lines.push(`📥 Entry     <code>${formatPrice(entryPrice)}</code>`);
   }
   
   if (signal.stopLoss && signal.stopLoss !== "-") {
-    lines.push(`  🛑 SL        <code>${formatPrice(signal.stopLoss)}</code>`);
+    lines.push(`🛑 SL        <code>${formatPrice(signal.stopLoss)}</code>`);
   }
   
   if (signal.takeProfits && signal.takeProfits.length > 0) {
     const validTPs = signal.takeProfits.filter(tp => tp && tp !== "-").slice(0, 3);
     if (validTPs.length > 0) {
-      lines.push(`  🎯 TP        <code>${validTPs.map(tp => formatPrice(tp)).join("</code> → <code>")}</code>`);
+      lines.push(`🎯 TP        <code>${validTPs.map(tp => formatPrice(tp)).join("</code> → <code>")}</code>`);
     }
   }
   
   if (signal.rr && signal.rr !== "-") {
-    lines.push(`  📈 R:R       <code>${escapeHtml(signal.rr)}</code>`);
+    lines.push(`📈 R:R       <code>${escapeHtml(signal.rr)}</code>`);
   }
   
-  // MÔ TẢ CHI TIẾT
-  lines.push(``);
-  lines.push(`  ─────────────────────────────`);
-  
-  // Entry Type description
-  if (entryTypeInfo.full) {
-    lines.push(`  📍 <i>${entryTypeInfo.full}</i>`);
-  }
-  
-  // Scenario description
-  const scenarioDesc = getScenarioDesc(signal.scenario);
-  if (scenarioDesc) {
-    lines.push(`  📋 <i>${scenarioDesc}</i>`);
-  }
-  
-  // Original reason
-  if (signal.reason) {
-    lines.push(`  💡 <i>${escapeHtml(signal.reason.substring(0, 80))}${signal.reason.length > 80 ? '...' : ''}</i>`);
+  // MÔ TẢ CHI TIẾT - Ngắn gọn hơn
+  if (entryTypeInfo.full || signal.scenario || signal.reason) {
+    lines.push(``);
+    lines.push(`───────────────────`);
+    
+    if (entryTypeInfo.full) {
+      lines.push(`📍 <i>${entryTypeInfo.full}</i>`);
+    }
+    
+    const scenarioDesc = getScenarioDesc(signal.scenario);
+    if (scenarioDesc) {
+      lines.push(`📋 <i>${scenarioDesc}</i>`);
+    }
+    
+    if (signal.reason) {
+      lines.push(`💡 <i>${escapeHtml(signal.reason.substring(0, 60))}${signal.reason.length > 60 ? '...' : ''}</i>`);
+    }
   }
   
   return lines.join("\n");
@@ -173,10 +183,10 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
     month: '2-digit'
   });
   
-  lines.push(`╔═══════════════════════════════════╗`);
-  lines.push(`║   📊 <b>TRADING SIGNALS</b>             ║`);
-  lines.push(`║   ⏰ ${now}                  ║`);
-  lines.push(`╚═══════════════════════════════════╝`);
+  lines.push(`╔═══════════════════════════╗`);
+  lines.push(`║   📊 <b>TRADING SIGNALS</b>     ║`);
+  lines.push(`║   ⏰ ${now}            ║`);
+  lines.push(`╚═══════════════════════════╝`);
   lines.push(``);
   
   // STATS
@@ -190,7 +200,8 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
     const topStr = top3.map(s => {
       const dir = getDirectionStyle(s.direction);
       const score = s.entryScore ?? convertEdgeScoreTo100(s.edgeScore ?? 0);
-      return `${dir.color}${s.symbol}(<code>${score}</code>)`;
+      const level = getScoreLevel(score);
+      return `${dir.color}${s.symbol}(<code>${score}</code>${level.emoji})`;
     }).join("  ");
     lines.push(`   🏆 ${topStr}`);
   }
@@ -206,7 +217,7 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
   // LONG SIGNALS
   if (longSignals.length > 0) {
     lines.push(`🟢 <b>LONG POSITIONS</b> (${longSignals.length})`);
-    lines.push(`═══════════════════════════════════`);
+    lines.push(`═══════════════════════════`);
     longSignals.forEach(signal => {
       lines.push(formatSignalCard(signal));
     });
@@ -216,7 +227,7 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
   // SHORT SIGNALS
   if (shortSignals.length > 0) {
     lines.push(`🔴 <b>SHORT POSITIONS</b> (${shortSignals.length})`);
-    lines.push(`═══════════════════════════════════`);
+    lines.push(`═══════════════════════════`);
     shortSignals.forEach(signal => {
       lines.push(formatSignalCard(signal));
     });
@@ -225,16 +236,16 @@ export const formatTelegramMessage = (analysis: AnalysisResult): string => {
   
   // No signals
   if (total === 0) {
-    lines.push(`┌─────────────────────────────────┐`);
-    lines.push(`│  ⚠️ <b>NO SIGNALS</b>                  │`);
-    lines.push(`│  Market sideways / No setup     │`);
-    lines.push(`└─────────────────────────────────┘`);
+    lines.push(`┌───────────────────────┐`);
+    lines.push(`│  ⚠️ <b>NO SIGNALS</b>        │`);
+    lines.push(`│  Market sideways      │`);
+    lines.push(`└───────────────────────┘`);
     lines.push(``);
   }
   
   // FOOTER
-  lines.push(`───────────────────────────────────`);
-  lines.push(`🔖 <code>${analysis.mailId?.substring(0, 12) || '-'}</code>  ⚠️ <i>DYOR - Not financial advice</i>`);
+  lines.push(`───────────────────────`);
+  lines.push(`🔖 <code>${analysis.mailId?.substring(0, 12) || '-'}</code>  ⚠️ <i>DYOR</i>`);
   
   return lines.join("\n");
 };
@@ -259,7 +270,10 @@ export const formatShortNotification = (analysis: AnalysisResult): string => {
   };
   
   const top3 = [...longSignals, ...shortSignals].sort(sortByScore).slice(0, 3);
-  const topList = top3.map(s => `${getDirectionStyle(s.direction).color}${s.symbol}`).join(" ");
+  const topList = top3.map(s => {
+    const score = s.entryScore ?? convertEdgeScoreTo100(s.edgeScore ?? 0);
+    return `${getDirectionStyle(s.direction).color}${s.symbol}(${score}${getScoreEmoji(score)})`;
+  }).join(" ");
   
   return `📊 <b>NEW SIGNALS</b> │ ${total} total\n\n🟢 ${longSignals.length} LONG  │  🔴 ${shortSignals.length} SHORT\n\n🏆 ${topList}`;
 };
@@ -274,9 +288,13 @@ export const formatSignalCompact = (signal: TradingSignal): string => {
   const entryScore = signal.entryScore ?? 0;
   const entryTypeInfo = getEntryTypeLabel(signal.entryType);
   
+  // Lấy mức độ
+  const edgeLevel = getScoreLevel(edgeScore100);
+  const entryLevel = getScoreLevel(entryScore);
+  
   const lines: string[] = [];
   lines.push(`${dir.color} <b>${signal.symbol}</b> ${dir.icon}${dir.label} │ 📍${entryTypeInfo.short}`);
-  lines.push(`   📊 Edge <code>${edgeScore100}</code>  🎯 Entry <code>${entryScore}</code>`);
+  lines.push(`   📊 Edge <code>${edgeScore100}</code>${edgeLevel.emoji}  🎯 Entry <code>${entryScore}</code>${entryLevel.emoji}`);
   
   if (signal.price && signal.price !== "-") {
     lines.push(`   💰 <code>${formatPrice(signal.price)}</code>`);

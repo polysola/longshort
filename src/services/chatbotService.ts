@@ -3,11 +3,12 @@ import { EnvConfig } from "../config/env";
 import { NormalizedMail, NormalizedReport } from "../types/mail";
 import { ExternalServiceError } from "../lib/errors";
 import { logDebug, logInfo } from "../utils/logger";
-import { ENTRY_SCORE_RULES, TRADING_TERMS } from "../config/scoringRules";
+import { UNIFIED_SCORING_PROMPT, TRADING_TERMS, getScoreLevel, formatScoreWithLevel } from "../config/scoringRules";
 
-// ════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════
 // CONVERSATION HISTORY
-// ════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════
+
 type ConversationItem = {
   question: string;
   answer: string;
@@ -59,9 +60,10 @@ export const resetConversationHistory = () => {
   logInfo("Đã reset lịch sử hội thoại.", { oldLength });
 };
 
-// ════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════
 // BUILD CONTEXT DATA
-// ════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════
+
 const buildContextData = (
   data: NormalizedReport | NormalizedReport[] | NormalizedMail | null
 ): string => {
@@ -140,9 +142,10 @@ ${mail.htmlText || mail.plainText || mail.snippet}
 `;
 };
 
-// ════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════
 // GENERATE TERMS GUIDE
-// ════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════
+
 const generateTermsGuide = (): string => {
   const terms = Object.entries(TRADING_TERMS)
     .map(([term, explain]) => `• <b>${term}</b>: ${explain}`)
@@ -154,9 +157,10 @@ ${terms}
 `;
 };
 
-// ════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════
 // ANSWER QUESTION
-// ════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════
+
 export const answerQuestion = async (
   config: EnvConfig,
   question: string,
@@ -190,6 +194,8 @@ NGUYÊN TẮC:
 
 ${termsGuide}
 
+${UNIFIED_SCORING_PROMPT}
+
 CÁCH TRẢ LỜI:
 
 A. KHI HỎI VỀ THUẬT NGỮ:
@@ -209,12 +215,12 @@ A. KHI HỎI VỀ THUẬT NGỮ:
 
 B. KHI HỎI VỀ COIN - FORMAT CHUYÊN NGHIỆP:
 
-┌─────────────────────────────────┐
+┌───────────────────────────┐
 │ 🔴 BTCUSDT  ▼ SHORT  │  📍 BREAKOUT
 │ ⏱ 4h  │  📋 Scenario B
-└─────────────────────────────────┘
+└───────────────────────────┘
 
-📊 Edge \`85\`⚡  │  🎯 Entry \`72\`✨
+📊 Edge \`88\` ⚡ RẤT TỐT  │  🎯 Entry \`72\` ✨ TỐT
 
 💰 Price     \`91,262\`
 📥 Entry     \`91,484\`
@@ -222,17 +228,28 @@ B. KHI HỎI VỀ COIN - FORMAT CHUYÊN NGHIỆP:
 🎯 TP        \`89,500\` → \`87,200\` → \`84,000\`
 📈 R:R       \`1.3/2.5/4.0\`
 
-─────────────────────────────
 📍 Vào khi phá vỡ mức kháng cự
 📋 Breakout rõ ràng với volume tốt
 💡 ADX > 25, xu hướng mạnh, momentum tăng
 
-C. 2 LOẠI ĐIỂM (THANG 100):
+C. 2 LOẠI ĐIỂM (THANG 100) - LUÔN HIỂN THỊ MỨC ĐỘ:
 
 📊 EdgeScore: Điểm tín hiệu kỹ thuật thuần túy
-🎯 EntryScore: Điểm vào lệnh tổng hợp (Edge + R:R + Trend)
+   • Chuyển từ thang 7 → 100 (Edge 6 = 88, Edge 5 = 73, Edge 4 = 58...)
+   
+🎯 EntryScore: Điểm vào lệnh tổng hợp (Edge + R:R + Trend + Market)
+   • Đây là điểm QUAN TRỌNG NHẤT để quyết định vào lệnh
 
-THANG: 90+🔥 │ 80+⚡ │ 70+✨ │ 55+👍 │ 40+📊 │ <40⬇️
+THANG MỨC ĐỘ (ÁP DỤNG CHO CẢ 2 LOẠI ĐIỂM):
+🔥 90-100: CỰC TỐT (EXCELLENT) - Cơ hội vàng
+⚡ 80-89: RẤT TỐT (VERY GOOD) - Nên vào lệnh
+✨ 70-79: TỐT (GOOD) - Cân nhắc vào lệnh
+👍 55-69: KHÁ (FAIR) - Cẩn thận
+📊 40-54: TRUNG BÌNH (WEAK) - Rủi ro cao
+⬇️ 0-39: YẾU (POOR) - Không nên vào lệnh
+
+QUAN TRỌNG: Luôn hiển thị điểm KÈM mức độ!
+VD: "📊 Edge \`88\` ⚡ RẤT TỐT" thay vì chỉ "Edge 88"
 
 D. LOẠI VÀO LỆNH:
 📍 BREAKOUT: Vào khi giá phá vỡ mức quan trọng
@@ -248,18 +265,18 @@ E. SCENARIO:
 📋 G: Rủi ro cao
 
 ${isMultipleReports ? `
-D. SO SÁNH NHIỀU BÁO CÁO:
+F. SO SÁNH NHIỀU BÁO CÁO:
 
 📊 SO SÁNH BTCUSDT
 ═══════════════════════════════
 
 📅 19:50 │ 🔴 SHORT
    Entry \`91,484\`
-   Edge \`85\` │ Entry \`72\`
+   Edge \`88\` ⚡ │ Entry \`72\` ✨
 
 📅 18:50 │ 🔴 SHORT
    Entry \`92,100\`
-   Edge \`78\` │ Entry \`65\`
+   Edge \`73\` ✨ │ Entry \`65\` 👍
 
 📈 TREND: Giữ SHORT, Entry ↓616, Score ↑7
 ` : ''}
@@ -271,14 +288,16 @@ FORMAT TELEGRAM MARKDOWN:
 • KHÔNG dùng dấu * để in đậm (gây lỗi)
 • Dùng \`code\` cho TẤT CẢ số liệu (giá, điểm, R:R)
 • Dùng emoji thay vì dấu *
-• Box: ┌─────┐ └─────┘
+• Box gọn: ┌───┐ └───┘ (ít dấu - hơn)
 • Emoji: 📊💰🎯🛑📥📈📉🟢🔴⚡✨👍⬇️🔥
 
-QUAN TRỌNG: Dùng \`backtick\` cho mọi con số!`;
+QUAN TRỌNG: 
+• Dùng \`backtick\` cho mọi con số!
+• LUÔN hiển thị mức độ bên cạnh điểm số!`;
 
     const contents = [
       { role: "user", parts: [{ text: systemPrompt }] },
-      { role: "model", parts: [{ text: "Đã hiểu! Tôi sẽ trả lời bằng tiếng Việt, dựa trên dữ liệu báo cáo, không bịa thông tin. Hãy hỏi tôi!" }] },
+      { role: "model", parts: [{ text: "Đã hiểu! Tôi sẽ trả lời bằng tiếng Việt, dựa trên dữ liệu báo cáo, hiển thị điểm KÈM mức độ. Hãy hỏi tôi!" }] },
       ...conversationHistoryArray,
       { role: "user", parts: [{ text: question }] }
     ];
@@ -310,9 +329,10 @@ QUAN TRỌNG: Dùng \`backtick\` cho mọi con số!`;
   }
 };
 
-// ════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════
 // FORMAT BOT REPLY
-// ════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════════
+
 export const formatBotReply = (answer: string, reportDate?: string): string => {
   const timestamp = new Date().toLocaleString('vi-VN', { 
     timeZone: 'Asia/Ho_Chi_Minh',
@@ -322,23 +342,23 @@ export const formatBotReply = (answer: string, reportDate?: string): string => {
     month: '2-digit'
   });
 
-  const header = `┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃  🤖 *TRỢ LÝ CRYPTO*          ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  const header = `┏━━━━━━━━━━━━━━━━━━━━━━┓
+┃  🤖 TRỢ LÝ CRYPTO     ┃
+┗━━━━━━━━━━━━━━━━━━━━━━┛
 
 `;
 
   let footer = `
 
-╭───────────────────────────╮
-│ ⏰ *Trả lời:* ${timestamp}`;
+╭──────────────────╮
+│ ⏰ ${timestamp}`;
   if (reportDate) {
     footer += `
-│ 📊 *Dữ liệu:* ${reportDate}`;
+│ 📊 ${reportDate}`;
   }
   footer += `
-│ 💡 *Lưu ý:* Tự nghiên cứu trước khi giao dịch
-╰───────────────────────────╯`;
+│ 💡 DYOR - Tự nghiên cứu
+╰──────────────────╯`;
 
   return header + answer + footer;
 };

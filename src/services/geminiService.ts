@@ -3,7 +3,11 @@ import { EnvConfig } from "../config/env";
 import { ActionItem, AnalysisResult, NormalizedMail, NormalizedReport, TradingSignal } from "../types/mail";
 import { ExternalServiceError, ProcessingError } from "../lib/errors";
 import { logDebug } from "../utils/logger";
-import { ENTRY_SCORE_RULES, convertEdgeScoreTo100 } from "../config/scoringRules";
+import { UNIFIED_SCORING_PROMPT, convertEdgeScoreTo100, getScoreLevel } from "../config/scoringRules";
+
+// ════════════════════════════════════════════════════════════════════════════════
+// BUILD PROMPT
+// ════════════════════════════════════════════════════════════════════════════════
 
 // Legacy: Build prompt từ NormalizedMail
 const buildPrompt = (mail: NormalizedMail): string => {
@@ -39,6 +43,10 @@ const buildReportPrompt = (report: NormalizedReport): string => {
 
   return lines.join("\n");
 };
+
+// ════════════════════════════════════════════════════════════════════════════════
+// RAW ANALYSIS TYPES
+// ════════════════════════════════════════════════════════════════════════════════
 
 type RawAnalysis = {
   subject?: string;
@@ -84,6 +92,55 @@ const sanitizeActionItems = (items?: RawAnalysis["actionItems"]): ActionItem[] =
     }));
 };
 
+// ════════════════════════════════════════════════════════════════════════════════
+// CALCULATE ENTRY SCORE - Thống nhất với scoringRules.ts
+// ════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Tính EntryScore (thang 100) từ các yếu tố
+ * Công thức thống nhất với UNIFIED_SCORING_PROMPT
+ */
+const calculateEntryScore = (edgeScore100: number, rr?: string, direction?: string): number => {
+  let score = 0;
+  
+  // 1. EdgeScore đóng góp 40% (max 40 điểm)
+  score += edgeScore100 * 0.4;
+  
+  // 2. R:R đóng góp 30% (max 30 điểm)
+  if (rr) {
+    const rrValues = rr.split('/').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
+    const maxRR = Math.max(...rrValues, 0);
+    
+    if (maxRR >= 4.0) score += 30;
+    else if (maxRR >= 3.0) score += 27;
+    else if (maxRR >= 2.5) score += 24;
+    else if (maxRR >= 2.0) score += 20;
+    else if (maxRR >= 1.5) score += 15;
+    else if (maxRR >= 1.0) score += 10;
+    else score += 5;
+  } else {
+    score += 10; // Mặc định nếu không có RR
+  }
+  
+  // 3. Hướng đi đóng góp 15% (max 15 điểm)
+  if (direction === "LONG" || direction === "SHORT") {
+    score += 15; // Có hướng rõ ràng
+  } else if (direction === "STAY_OUT") {
+    return Math.min(20, score); // STAY_OUT tối đa 20 điểm
+  } else {
+    score += 5; // NEUTRAL hoặc không rõ
+  }
+  
+  // 4. Điều kiện thị trường đóng góp 15% (mặc định 10 vì không có data cụ thể)
+  score += 10;
+  
+  return Math.min(100, Math.max(0, Math.round(score)));
+};
+
+// ════════════════════════════════════════════════════════════════════════════════
+// SANITIZE SIGNALS
+// ════════════════════════════════════════════════════════════════════════════════
+
 const sanitizeSignals = (items?: TradingSignal[]): TradingSignal[] => {
   if (!Array.isArray(items)) return [];
   return items
@@ -95,12 +152,15 @@ const sanitizeSignals = (items?: TradingSignal[]): TradingSignal[] => {
       // Chuyển EdgeScore sang thang 100
       const edgeScore100 = convertEdgeScoreTo100(edgeScore7);
       
-      // Tính EntryScore dựa trên EdgeScore100 và các yếu tố khác
+      // Tính EntryScore nếu không có hoặc không hợp lệ
       let entryScore = item.entryScore;
       if (typeof entryScore !== 'number' || entryScore < 0 || entryScore > 100) {
-        // Tự tính nếu không có hoặc không hợp lệ
         entryScore = calculateEntryScore(edgeScore100, item.rr, item.direction);
       }
+      
+      // Log để debug
+      const level = getScoreLevel(entryScore);
+      logDebug(`Signal ${item.symbol}: Edge7=${edgeScore7} → Edge100=${edgeScore100}, Entry=${entryScore} (${level.labelVi})`);
       
       return {
         symbol: item.symbol.trim().toUpperCase(),
@@ -122,41 +182,9 @@ const sanitizeSignals = (items?: TradingSignal[]): TradingSignal[] => {
     });
 };
 
-// Tính EntryScore (thang 100) từ các yếu tố
-const calculateEntryScore = (edgeScore100: number, rr?: string, direction?: string): number => {
-  let score = 0;
-  
-  // 1. EdgeScore đóng góp 40%
-  score += edgeScore100 * 0.4;
-  
-  // 2. R:R đóng góp 30%
-  if (rr) {
-    const rrValues = rr.split('/').map(v => parseFloat(v.trim())).filter(v => !isNaN(v));
-    const maxRR = Math.max(...rrValues, 0);
-    
-    if (maxRR >= 4.0) score += 30;
-    else if (maxRR >= 3.0) score += 27;
-    else if (maxRR >= 2.5) score += 24;
-    else if (maxRR >= 2.0) score += 20;
-    else if (maxRR >= 1.5) score += 15;
-    else if (maxRR >= 1.0) score += 10;
-    else score += 5;
-  } else {
-    score += 10; // Mặc định nếu không có RR
-  }
-  
-  // 3. Hướng đi đóng góp 15%
-  if (direction === "LONG" || direction === "SHORT") {
-    score += 15; // Có hướng rõ ràng
-  } else if (direction === "STAY_OUT") {
-    score = Math.min(score, 20); // STAY_OUT tối đa 20 điểm
-  }
-  
-  // 4. Điều kiện thị trường đóng góp 15% (mặc định 10 vì không có data)
-  score += 10;
-  
-  return Math.min(100, Math.max(0, Math.round(score)));
-};
+// ════════════════════════════════════════════════════════════════════════════════
+// SYSTEM INSTRUCTION - Thống nhất với scoringRules.ts
+// ════════════════════════════════════════════════════════════════════════════════
 
 const SYSTEM_INSTRUCTION = `Bạn là chuyên gia phân tích tín hiệu Crypto chuyên nghiệp.
 Nhiệm vụ: Trích xuất danh sách TẤT CẢ các tín hiệu giao dịch từ report và đánh giá độ tốt của từng tín hiệu.
@@ -187,6 +215,8 @@ CÁC CỘT QUAN TRỌNG CẦN TRÍCH XUẤT:
 - Scenario: A, B, C, D, F1, F2, F3, G - loại setup
 - EdgeScore: Trong Notes, format "EdgeScore=X.X" (0-7)
 
+${UNIFIED_SCORING_PROMPT}
+
 Trả về JSON (không bọc trong markdown) cấu trúc:
 {
   "subject": "string",
@@ -204,7 +234,7 @@ Trả về JSON (không bọc trong markdown) cấu trúc:
       "takeProfits": ["91231.5", "91205.1", "91143.8"],
       "entryType": "stop_breakout",
       "scenario": "C",
-      "edgeScore": 2.0,
+      "edgeScore": 5.0,
       "rr": "0.80/1.02/1.53",
       "reason": "Compression breakout setup",
       "entryScore": 65
@@ -214,21 +244,22 @@ Trả về JSON (không bọc trong markdown) cấu trúc:
   "confidence": 0.9
 }
 
-${ENTRY_SCORE_RULES}
-
 QUY TẮC TRÍCH XUẤT:
 1. ƯU TIÊN lấy tín hiệu từ bảng "Final Conclusion" vì đây là kết luận cuối cùng.
 2. Chỉ trích xuất tín hiệu có Side/Decision = LONG hoặc SHORT (bỏ qua STAY_OUT).
 3. Entry = Trigger nếu có, nếu không dùng Price.
 4. Trích xuất CHÍNH XÁC các giá trị số từ bảng (SL, TP1, TP2, TP3, RR1, RR2, RR3).
-5. EdgeScore lấy từ Notes (VD: "EdgeScore=2.0" -> edgeScore: 2.0).
+5. EdgeScore lấy từ Notes (VD: "EdgeScore=2.0" -> edgeScore: 2.0). Đây là thang 0-7.
 6. RR format: "RR1/RR2/RR3" (VD: "1.30/2.50/4.00").
-7. entryScore tính từ EdgeScore (x14), RR, và Scenario theo công thức trong ENTRY_SCORE_RULES.
+7. entryScore tính theo công thức trong UNIFIED_SCORING_PROMPT (thang 0-100).
 8. Scenario lấy ký tự đầu (A, B, C, D, F1, F2, F3, G) từ cột Scenario hoặc Notes.
 9. KHÔNG bịa số liệu - chỉ trích xuất từ report.
 10. Nếu có nhiều List (List 1, List 2, ...), lấy TẤT CẢ tín hiệu LONG/SHORT từ các bảng Final Conclusion.`;
 
-// Legacy: Phân tích từ NormalizedMail (Gmail)
+// ════════════════════════════════════════════════════════════════════════════════
+// ANALYZE MAIL (Legacy - từ Gmail)
+// ════════════════════════════════════════════════════════════════════════════════
+
 export const analyzeMail = async (
   config: EnvConfig,
   mail: NormalizedMail,
@@ -276,7 +307,10 @@ export const analyzeMail = async (
   }
 };
 
-// New: Phân tích từ NormalizedReport (API)
+// ════════════════════════════════════════════════════════════════════════════════
+// ANALYZE REPORT (New - từ API)
+// ════════════════════════════════════════════════════════════════════════════════
+
 export const analyzeReport = async (
   config: EnvConfig,
   report: NormalizedReport,
