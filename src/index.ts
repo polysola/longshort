@@ -54,11 +54,8 @@ const processReport = async (
     // 1. Phân tích với Gemini
     const analysis = await analyzeReport(env, report);
 
-    // 2. Format tin nhắn Telegram với thời gian chi tiết
-    const separator = `\n━━━━━━━━━━━━━━━━━━━━━━\n📊 *Report từ API:* ${report.date}\n⏰ *Xử lý lúc:* ${now.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}\n📈 *Symbols:* ${report.symbols.length} coins\n━━━━━━━━━━━━━━━━━━━━━━\n`;
-    
-    const baseMessage = formatTelegramMessage(analysis);
-    const finalMessage = separator + baseMessage;
+    // 2. Format tin nhắn Telegram - TỔNG QUAN lên đầu
+    const finalMessage = formatTelegramMessage(analysis);
 
     // 3. Gửi Telegram
     await sendTelegramMessage(env, finalMessage);
