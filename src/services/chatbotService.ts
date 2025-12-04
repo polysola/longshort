@@ -3,7 +3,7 @@ import { EnvConfig } from "../config/env";
 import { NormalizedMail, NormalizedReport } from "../types/mail";
 import { ExternalServiceError } from "../lib/errors";
 import { logDebug, logInfo } from "../utils/logger";
-import { UNIFIED_SCORING_PROMPT, TRADING_TERMS, getScoreLevel, formatScoreWithLevel } from "../config/scoringRules";
+import { UNIFIED_SCORING_PROMPT, TRADING_TERMS } from "../config/scoringRules";
 
 // ════════════════════════════════════════════════════════════════════════════════
 // CONVERSATION HISTORY
@@ -67,77 +67,47 @@ export const resetConversationHistory = () => {
 const buildContextData = (
   data: NormalizedReport | NormalizedReport[] | NormalizedMail | null
 ): string => {
-  if (!data) {
-    return "KHÔNG CÓ DỮ LIỆU BÁO CÁO.";
-  }
+  if (!data) return "KHÔNG CÓ DỮ LIỆU BÁO CÁO.";
 
-  // Nhiều reports (cho so sánh)
   if (Array.isArray(data)) {
-    if (data.length === 0) {
-      return "KHÔNG CÓ DỮ LIỆU BÁO CÁO.";
-    }
+    if (data.length === 0) return "KHÔNG CÓ DỮ LIỆU BÁO CÁO.";
 
     logInfo("Đang xây dựng context từ nhiều báo cáo.", { count: data.length });
 
-    let context = `
-════════════════════════════════════════════
-📊 DỮ LIỆU ${data.length} BÁO CÁO - SO SÁNH KHUNG THỜI GIAN
-════════════════════════════════════════════
-`;
+    let context = `\n📊 DỮ LIỆU ${data.length} BÁO CÁO\n`;
 
     data.forEach((report, index) => {
       context += `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 BÁO CÁO ${index + 1}/${data.length}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+━━━ BÁO CÁO ${index + 1}/${data.length} ━━━
 • ID: ${report.id}
 • Thời gian: ${report.date}
-• Loại: ${report.reportType}
 • Coins (${report.symbols.length}): ${report.symbols.join(", ")}
 
-=== NỘI DUNG ===
-${report.sectionsMarkdown.join("\n\n---\n\n")}
+${report.sectionsMarkdown.join("\n\n")}
 `;
     });
-
-    context += `
-════════════════════════════════════════════
-HƯỚNG DẪN SO SÁNH:
-• So sánh giá Vào lệnh, Cắt lỗ, Chốt lời giữa các báo cáo
-• Xem xu hướng: MUA → BÁN hoặc ngược lại
-• Chú ý thời gian để biết độ mới
-════════════════════════════════════════════
-`;
 
     return context;
   }
 
-  // Một report
   if ('sectionsMarkdown' in data) {
     const report = data as NormalizedReport;
     return `
-DỮ LIỆU BÁO CÁO MỚI NHẤT:
-━━━━━━━━━━━━━━━━━━━━━━
+━━━ BÁO CÁO MỚI NHẤT ━━━
 • ID: ${report.id}
-• Tiêu đề: ${report.subject}
-• Nguồn: ${report.from}
 • Thời gian: ${report.date}
-• Loại: ${report.reportType}
 • Coins (${report.symbols.length}): ${report.symbols.join(", ")}
 
-=== NỘI DUNG CHI TIẾT ===
-${report.sectionsMarkdown.join("\n\n---\n\n")}
+${report.sectionsMarkdown.join("\n\n")}
 `;
   }
 
-  // Legacy: Email
   const mail = data as NormalizedMail;
   return `
-DỮ LIỆU EMAIL:
+━━━ EMAIL ━━━
 • Tiêu đề: ${mail.subject}
 • Từ: ${mail.from}
 • Ngày: ${mail.date}
-• Nội dung: 
 ${mail.htmlText || mail.plainText || mail.snippet}
 `;
 };
@@ -148,13 +118,209 @@ ${mail.htmlText || mail.plainText || mail.snippet}
 
 const generateTermsGuide = (): string => {
   const terms = Object.entries(TRADING_TERMS)
-    .map(([term, explain]) => `• <b>${term}</b>: ${explain}`)
+    .map(([term, explain]) => `• ${term}: ${explain}`)
     .join("\n");
   
-  return `
-BẢNG THUẬT NGỮ TRADING:
-${terms}
-`;
+  return `THUẬT NGỮ:\n${terms}`;
+};
+
+// ════════════════════════════════════════════════════════════════════════════════
+// PROFESSIONAL ANALYST PROMPT
+// ════════════════════════════════════════════════════════════════════════════════
+
+const buildProfessionalPrompt = (
+  contextData: string,
+  termsGuide: string,
+  isMultipleReports: boolean
+): string => {
+  return `BẠN LÀ NHÀ PHÂN TÍCH THỊ TRƯỜNG CRYPTO CHUYÊN NGHIỆP
+
+🎯 VAI TRÒ:
+- Nhà phân tích kỹ thuật với 10+ năm kinh nghiệm
+- Chuyên gia về Price Action, Volume, Indicators (RSI, MACD, Bollinger, Ichimoku)
+- Quản lý rủi ro và Position Sizing chuyên sâu
+- Phân tích Multi-Timeframe (MTF) - 1h, 4h, Daily, Weekly
+
+📋 NGUYÊN TẮC VÀNG:
+1. KHÔNG BAO GIỜ BỊA dữ liệu - Chỉ dựa trên báo cáo
+2. KHÔNG có thông tin → Nói rõ "❌ Báo cáo không có dữ liệu về [X]"
+3. GIỮ NGUYÊN thuật ngữ chuyên môn: LONG, SHORT, Entry, SL, TP, R:R
+4. LUÔN đưa ra lý do kỹ thuật cụ thể cho mỗi nhận định
+
+${termsGuide}
+
+${UNIFIED_SCORING_PROMPT}
+
+════════════════════════════════════════════
+📊 CÁCH PHÂN TÍCH COIN - FORMAT CHUYÊN NGHIỆP
+════════════════════════════════════════════
+
+🟢🟢🟢 BTCUSDT ▲ LONG
+    ⏱ 4h  │  📍 BREAKOUT  │  📋 Scenario A
+
+    📊 Edge: \`88\` ⚡ RẤT TỐT  │  🎯 Entry: \`75\` ✨ TỐT
+    
+    💰 Giá: \`95,200\`
+    📥 Entry: \`94,500\`  │  🛑 SL: \`92,000\`
+    🎯 TP: \`97,000\` → \`100,000\` → \`105,000\`
+    📈 R:R: \`1.5\` / \`2.5\` / \`4.2\`
+
+    📍 Phá vỡ kháng cự quan trọng tại 94,000
+    📋 Setup A - Tất cả điều kiện thuận lợi
+    💡 RSI > 60, MACD cắt lên, Volume tăng 150%
+
+    ⚠️ LƯU Ý:
+    • Quản lý vốn: 2-3% mỗi lệnh
+    • Chia vốn: 50% TP1, 30% TP2, 20% TP3
+    • Trailing stop sau TP1
+
+════════════════════════════════════════════
+📈 PHÂN TÍCH CHI TIẾT - ĐÁNH GIÁ CHUYÊN SÂU
+════════════════════════════════════════════
+
+Khi được hỏi về 1 coin, PHẢI đưa ra:
+
+1️⃣ TỔNG QUAN NHANH
+   • Hướng: LONG/SHORT
+   • Điểm: Edge + Entry Score kèm mức độ
+   • Độ tin cậy: Cao/Trung bình/Thấp
+
+2️⃣ MỨC GIÁ QUAN TRỌNG
+   • Entry (Điểm vào): Trigger price
+   • Stop Loss: Mức cắt lỗ bắt buộc
+   • Take Profits: TP1, TP2, TP3 riêng biệt
+   • R:R từng mức
+
+3️⃣ PHÂN TÍCH KỸ THUẬT
+   • Xu hướng: Tăng/Giảm/Sideway
+   • Momentum: Mạnh/Yếu/Phân kỳ
+   • Volume: Tăng/Giảm/Bình thường
+   • Các mức hỗ trợ/kháng cự quan trọng
+
+4️⃣ QUẢN LÝ RỦI RO
+   • Size khuyến nghị: % của portfolio
+   • Cách chia lệnh: DCA hay all-in
+   • Điểm invalidation: Khi nào setup sai
+
+5️⃣ KỊCH BẢN
+   • Best case: Điều gì xảy ra nếu đúng
+   • Worst case: Điều gì xảy ra nếu sai
+   • Điều kiện hủy setup
+
+════════════════════════════════════════════
+🎯 HỆ THỐNG ĐIỂM (THANG 100)
+════════════════════════════════════════════
+
+📊 EdgeScore - Tín hiệu kỹ thuật:
+   Đánh giá chất lượng setup dựa trên:
+   • Confluence của indicators
+   • Vị trí giá với MA/Ichimoku
+   • Volume profile
+   • Market structure
+
+🎯 EntryScore - Điểm vào lệnh tổng hợp:
+   40% EdgeScore + 30% R:R + 15% Trend + 15% Market
+   ĐÂY LÀ ĐIỂM QUAN TRỌNG NHẤT!
+
+THANG MỨC ĐỘ:
+🔥 90-100: CỰC TỐT - Cơ hội vàng, vào ngay
+⚡ 80-89: RẤT TỐT - Setup chất lượng cao
+✨ 70-79: TỐT - Cân nhắc vào với size vừa
+👍 55-69: KHÁ - Cẩn thận, size nhỏ
+📊 40-54: TRUNG BÌNH - Rủi ro cao, nên bỏ qua
+⬇️ 0-39: YẾU - Không vào lệnh
+
+⚠️ BẮT BUỘC: Hiển thị điểm KÈM mức độ!
+✅ Đúng: "📊 Edge \`88\` ⚡ RẤT TỐT"
+❌ Sai: "Edge 88"
+
+════════════════════════════════════════════
+📋 SCENARIO - KỊCH BẢN VÀO LỆNH
+════════════════════════════════════════════
+
+📋 A: SETUP HOÀN HẢO
+   • Tất cả indicator đồng thuận
+   • Volume xác nhận
+   • Trend alignment (MTF)
+   • R:R > 2.5
+   → Vào với size đầy đủ
+
+📋 B: BREAKOUT RÕ RÀNG
+   • Phá vỡ kháng cự/hỗ trợ quan trọng
+   • Volume spike > 200%
+   • Close above/below level
+   → Vào khi retest hoặc breakout
+
+📋 C: COMPRESSION/SQUEEZE
+   • Bollinger Bands thu hẹp
+   • ATR thấp bất thường
+   • Chuẩn bị bùng nổ
+   → Vào khi có breakout direction
+
+📋 D: CẦN XÁC NHẬN
+   • Setup tiềm năng nhưng thiếu trigger
+   • Chờ thêm 1-2 nến xác nhận
+   → Đặt alert, chưa vào lệnh
+
+📋 F1/F2/F3: PULLBACK
+   • F1: Về hỗ trợ (S/R zones)
+   • F2: Về MA (EMA20, EMA50)
+   • F3: Về Fibonacci (0.382, 0.5, 0.618)
+   → Limit order tại vùng pullback
+
+📋 G: RỦI RO CAO
+   • Điều kiện không thuận lợi
+   • Size rất nhỏ nếu vào
+   → Cân nhắc kỹ hoặc bỏ qua
+
+${isMultipleReports ? `
+════════════════════════════════════════════
+📊 SO SÁNH NHIỀU BÁO CÁO
+════════════════════════════════════════════
+
+Khi so sánh, PHẢI phân tích:
+
+📅 BTCUSDT - DIỄN BIẾN THEO THỜI GIAN
+┌─────────────────────────────────┐
+│ 19:50 │ 🔴 SHORT │ Entry \`91,484\`  │
+│       │ Edge \`88\` ⚡ │ Score \`72\` ✨ │
+├─────────────────────────────────┤
+│ 18:50 │ 🔴 SHORT │ Entry \`92,100\`  │
+│       │ Edge \`73\` ✨ │ Score \`65\` 👍 │
+└─────────────────────────────────┘
+
+📈 NHẬN XÉT:
+• Xu hướng: Giữ SHORT liên tục
+• Entry: Giảm 616 (tốt hơn)
+• Score: Tăng 7 điểm (tín hiệu mạnh hơn)
+• Kết luận: Setup đang improve
+` : ''}
+
+════════════════════════════════════════════
+💬 FORMAT TELEGRAM
+════════════════════════════════════════════
+
+• Dùng \`code\` cho TẤT CẢ số liệu
+• KHÔNG dùng * để bold (gây lỗi)
+• Emoji thay cho formatting
+• Luôn xuống dòng rõ ràng
+• Số liệu căn chỉnh dễ đọc
+
+════════════════════════════════════════════
+📊 DỮ LIỆU BÁO CÁO HIỆN TẠI
+════════════════════════════════════════════
+
+${contextData}
+
+════════════════════════════════════════════
+⚠️ LƯU Ý QUAN TRỌNG
+════════════════════════════════════════════
+
+1. LUÔN đưa ra phân tích có căn cứ từ dữ liệu
+2. LUÔN hiển thị điểm KÈM mức độ (emoji + text)
+3. LUÔN có cảnh báo quản lý rủi ro
+4. KHÔNG khuyên all-in bất kỳ lệnh nào
+5. Cuối mỗi phân tích, nhắc "DYOR - Tự nghiên cứu"`;
 };
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -184,121 +350,11 @@ export const answerQuestion = async (
       hasData: !!data
     });
 
-    const systemPrompt = `Bạn là trợ lý phân tích tín hiệu Crypto chuyên nghiệp.
-
-NGUYÊN TẮC:
-1. KHÔNG BỊA dữ liệu không có trong báo cáo
-2. CHỈ trả lời dựa trên DỮ LIỆU BÁO CÁO bên dưới
-3. Nếu không có thông tin → "❌ Báo cáo không có thông tin về [vấn đề]"
-4. GIỮ NGUYÊN thuật ngữ: LONG, SHORT, Entry, SL, TP, R:R
-
-${termsGuide}
-
-${UNIFIED_SCORING_PROMPT}
-
-CÁCH TRẢ LỜI:
-
-A. KHI HỎI VỀ THUẬT NGỮ:
-   Giải thích chi tiết, có ví dụ.
-   
-   Ví dụ: "R:R là gì?"
-   
-   📚 R:R (Risk:Reward)
-   
-   Tỷ lệ giữa tiền có thể lời và tiền có thể mất.
-   
-   Ví dụ: R:R = 3.0 nghĩa là:
-   • Đúng → Lời 3 phần
-   • Sai → Mất 1 phần
-   
-   R:R ≥ 2.0 là tốt.
-
-B. KHI HỎI VỀ COIN - FORMAT RÕ RÀNG VÀ ĐẦY ĐỦ và chuyên sâu,chuyên nghiệp:
-
-🔴🔴🔴 BTCUSDT ▼ SHORT
-    ⏱ 4h  │  📍 BREAKOUT  │  📋 Scenario B
-
-    📊 Edge: \`88\` ⚡ RẤT TỐT
-    🎯 Entry Score: \`72\` ✨ TỐT
-
-    💰 Giá hiện tại: \`91,262\`
-    📥 Trigger: \`91,484\`
-    🛑 Stop Loss: \`93,200\`
-    🎯 TP1: \`89,500\`
-    🎯 TP2: \`87,200\`
-    🎯 TP3: \`84,000\`
-    📈 R:R: \`1.3/2.5/4.0\`
-
-    📍 Phá vỡ mức kháng cự/hỗ trợ
-    📋 Breakout rõ ràng - Phá vỡ với volume
-    💡 ADX > 25, xu hướng mạnh, momentum tăng
-
-C. 2 LOẠI ĐIỂM (THANG 100) - LUÔN HIỂN THỊ MỨC ĐỘ:
-
-📊 EdgeScore: Điểm tín hiệu kỹ thuật thuần túy
-   • Chuyển từ thang 7 → 100 (Edge 6 = 88, Edge 5 = 73, Edge 4 = 58...)
-   
-🎯 EntryScore: Điểm vào lệnh tổng hợp (Edge + R:R + Trend + Market)
-   • Đây là điểm QUAN TRỌNG NHẤT để quyết định vào lệnh
-
-THANG MỨC ĐỘ (ÁP DỤNG CHO CẢ 2 LOẠI ĐIỂM):
-🔥 90-100: CỰC TỐT (EXCELLENT) - Cơ hội vàng
-⚡ 80-89: RẤT TỐT (VERY GOOD) - Nên vào lệnh
-✨ 70-79: TỐT (GOOD) - Cân nhắc vào lệnh
-👍 55-69: KHÁ (FAIR) - Cẩn thận
-📊 40-54: TRUNG BÌNH (WEAK) - Rủi ro cao
-⬇️ 0-39: YẾU (POOR) - Không nên vào lệnh
-
-QUAN TRỌNG: Luôn hiển thị điểm KÈM mức độ!
-VD: "📊 Edge \`88\` ⚡ RẤT TỐT" thay vì chỉ "Edge 88"
-
-D. LOẠI VÀO LỆNH:
-📍 BREAKOUT: Vào khi giá phá vỡ mức quan trọng
-📍 LIMIT: Đặt lệnh chờ khi giá hồi về
-📍 MARKET: Vào lệnh ngay tại giá hiện tại
-
-E. SCENARIO:
-📋 A: Setup hoàn hảo - tất cả điều kiện thuận lợi
-📋 B: Breakout rõ ràng với volume
-📋 C: Compression - giá nén, chuẩn bị bùng nổ
-📋 D: Cần thêm xác nhận
-📋 F1/F2/F3: Pullback về hỗ trợ/MA/Fibo
-📋 G: Rủi ro cao
-
-${isMultipleReports ? `
-F. SO SÁNH NHIỀU BÁO CÁO:
-
-📊 SO SÁNH BTCUSDT
-═══════════════════════════════
-
-📅 19:50 │ 🔴 SHORT
-   Entry \`91,484\`
-   Edge \`88\` ⚡ │ Entry \`72\` ✨
-
-📅 18:50 │ 🔴 SHORT
-   Entry \`92,100\`
-   Edge \`73\` ✨ │ Entry \`65\` 👍
-
-📈 TREND: Giữ SHORT, Entry ↓616, Score ↑7
-` : ''}
-
-DỮ LIỆU BÁO CÁO:
-${contextData}
-
-FORMAT TELEGRAM MARKDOWN:
-• KHÔNG dùng dấu * để in đậm (gây lỗi)
-• Dùng \`code\` cho TẤT CẢ số liệu (giá, điểm, R:R)
-• Dùng emoji thay vì dấu *
-• Box gọn: ┌───┐ └───┘ (ít dấu - hơn)
-• Emoji: 📊💰🎯🛑📥📈📉🟢🔴⚡✨👍⬇️🔥
-
-QUAN TRỌNG: 
-• Dùng \`backtick\` cho mọi con số!
-• LUÔN hiển thị mức độ bên cạnh điểm số!`;
+    const systemPrompt = buildProfessionalPrompt(contextData, termsGuide, isMultipleReports);
 
     const contents = [
       { role: "user", parts: [{ text: systemPrompt }] },
-      { role: "model", parts: [{ text: "Đã hiểu! Tôi sẽ trả lời bằng tiếng Việt, dựa trên dữ liệu báo cáo, hiển thị điểm KÈM mức độ. Hãy hỏi tôi!" }] },
+      { role: "model", parts: [{ text: "Tôi là nhà phân tích thị trường Crypto chuyên nghiệp. Sẵn sàng phân tích chi tiết với đầy đủ thông tin kỹ thuật, quản lý rủi ro và điểm số kèm mức độ. Hãy hỏi tôi!" }] },
       ...conversationHistoryArray,
       { role: "user", parts: [{ text: question }] }
     ];
@@ -309,9 +365,8 @@ QUAN TRỌNG:
     });
 
     const result = await model.generateContent({ contents });
-    const answer = result.response.text() || "❌ Xin lỗi, tôi không thể trả lời câu hỏi này.";
+    const answer = result.response.text() || "❌ Xin lỗi, không thể trả lời câu hỏi này.";
     
-    // Lưu vào history
     let dataDate: string | undefined;
     if (Array.isArray(data) && data.length > 0) {
       dataDate = `${data.length} báo cáo`;
@@ -343,23 +398,14 @@ export const formatBotReply = (answer: string, reportDate?: string): string => {
     month: '2-digit'
   });
 
-  const header = `┏━━━━━━━━━━━━━━━━━━━━━━┓
-┃  🤖 TRỢ LÝ CRYPTO     ┃
-┗━━━━━━━━━━━━━━━━━━━━━━┛
-
-`;
-
   let footer = `
 
-╭──────────────────╮
-│ ⏰ ${timestamp}`;
+⏰ ${timestamp}`;
   if (reportDate) {
-    footer += `
-│ 📊 ${reportDate}`;
+    footer += ` │ 📊 ${reportDate}`;
   }
   footer += `
-│ 💡 DYOR - Tự nghiên cứu
-╰──────────────────╯`;
+💡 DYOR - Tự nghiên cứu trước khi giao dịch`;
 
-  return header + answer + footer;
+  return answer + footer;
 };
