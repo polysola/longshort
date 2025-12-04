@@ -32,6 +32,9 @@ export const SCORE_LEVELS: ScoreLevel[] = [
   { min: 0, max: 39, label: "POOR", labelVi: "YẾU", emoji: "⬇️", description: "Không nên vào lệnh" },
 ];
 
+// Default level để tránh undefined
+const DEFAULT_LEVEL: ScoreLevel = { min: 0, max: 39, label: "POOR", labelVi: "YẾU", emoji: "⬇️", description: "Không nên vào lệnh" };
+
 /**
  * Lấy thông tin mức độ từ điểm số
  */
@@ -41,7 +44,7 @@ export const getScoreLevel = (score: number): ScoreLevel => {
       return level;
     }
   }
-  return SCORE_LEVELS[SCORE_LEVELS.length - 1]; // Default: POOR
+  return DEFAULT_LEVEL;
 };
 
 /**
